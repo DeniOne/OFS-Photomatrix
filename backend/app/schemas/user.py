@@ -10,7 +10,7 @@ class UserBase(BaseModel):
     
 class UserCreate(UserBase):
     """Схема для создания пользователя"""
-    password: str = Field(..., min_length=8)
+    password: Optional[str] = Field(None, min_length=8)
     
 class UserUpdate(BaseModel):
     """Схема для обновления пользователя"""
@@ -24,6 +24,7 @@ class UserInDBBase(UserBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    is_superuser: bool
     
     class Config:
         from_attributes = True
@@ -32,6 +33,10 @@ class User(UserInDBBase):
     """Схема для возврата пользователя через API"""
     pass
     
+class UserActivate(BaseModel):
+    activation_code: str
+    password: str = Field(..., min_length=8)
+    
 class UserInDB(UserInDBBase):
     """Схема для внутреннего использования с хеш-паролем"""
-    hashed_password: str 
+    hashed_password: Optional[str] 

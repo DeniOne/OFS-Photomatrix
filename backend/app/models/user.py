@@ -9,7 +9,8 @@ class User(Base, BaseModel):
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)
+    activation_code = Column(String(128), unique=True, index=True, nullable=True)
     full_name = Column(String(255))
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)

@@ -17,7 +17,7 @@ class StaffBase(BaseModel):
     
 class StaffCreate(StaffBase):
     """Схема для создания сотрудника"""
-    pass
+    create_user: bool = False # Флаг для создания связанного пользователя
     
 class StaffUpdate(BaseModel):
     """Схема для обновления сотрудника"""
@@ -44,3 +44,7 @@ class StaffInDBBase(StaffBase):
 class Staff(StaffInDBBase):
     """Схема для возврата сотрудника через API"""
     pass 
+
+# Новая схема для ответа при создании сотрудника с пользователем
+class StaffCreateResponse(Staff):
+    activation_code: Optional[str] = None 

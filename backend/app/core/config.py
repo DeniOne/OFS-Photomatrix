@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     
     # Первый суперпользователь
     FIRST_SUPERUSER: EmailStr = "admin@example.com"
-    FIRST_SUPERUSER_PASSWORD: str = "admin"
+    FIRST_SUPERUSER_PASSWORD: str = "adminadmin"
     
     class Config:
         case_sensitive = True

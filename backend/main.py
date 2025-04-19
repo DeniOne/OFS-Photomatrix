@@ -13,7 +13,12 @@ app = FastAPI(
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В продакшне заменить на конкретные домены
+    # Явно указываем разрешенные источники
+    allow_origins=[
+        "http://localhost:5173", # Адрес фронтенда Vite
+        "http://localhost:8000"  # Адрес самого API (на всякий случай, для Swagger)
+        # Добавить сюда URL для продакшена, когда он появится
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

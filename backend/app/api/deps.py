@@ -31,7 +31,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    user = await crud_user.user.get(db, id=token_data.sub)
+    user = await crud_user.get(db, id=token_data.sub)
     
     if not user:
         raise HTTPException(
@@ -45,7 +45,7 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     """
     Получить текущего активного пользователя
     """
-    if not await crud_user.user.is_active(current_user):
+    if not await crud_user.is_active(current_user):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неактивный пользователь"
@@ -57,7 +57,7 @@ async def get_current_superuser(current_user: User = Depends(get_current_user)) 
     """
     Получить текущего суперпользователя
     """
-    if not await crud_user.user.is_superuser(current_user):
+    if not await crud_user.is_superuser(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав"

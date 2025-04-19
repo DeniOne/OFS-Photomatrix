@@ -9,21 +9,60 @@ import {
   Text,
   Container,
   Center,
-  useMantineTheme 
+  useMantineTheme, 
+  LoadingOverlay
 } from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { useMutation } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { IconCheck, IconX } from '@tabler/icons-react';
+import { loginUser } from '../api/client'; // Импортируем функцию логина
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const theme = useMantineTheme();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Добавить реальную логику авторизации
-    console.log('Login attempt:', { email, password });
-    // Пока просто переходим на дашборд
-    navigate('/dashboard');
+  // Форма для логина
+  const form = useForm({
+    initialValues: {
+      email: '',
+      password: '',
+    },
+    validate: {
+      email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Неверный формат email'),
+      password: (value) => (value.length < 1 ? 'Пароль не может быть пустым' : null),
+    },
+  });
+
+  // Мутация для логина
+  const mutation = useMutation({
+    mutationFn: loginUser,
+    onSuccess: (data) => {
+      console.log('Успешный вход:', data);
+      // Сохраняем токен в localStorage
+      localStorage.setItem('access_token', data.access_token);
+      notifications.show({
+        title: 'Успех!',
+        message: 'Вы успешно вошли в систему.',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+      navigate('/dashboard'); // Перенаправляем на дашборд
+    },
+    onError: (error) => {
+      console.error('Ошибка входа:', error);
+      notifications.show({
+        title: 'Ошибка входа!',
+        message: error.message, // Используем сообщение из ошибки API
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+
+  // Обработчик сабмита формы
+  const handleSubmit = (values: typeof form.values) => {
+    mutation.mutate({ username: values.email, password: values.password });
   };
 
   return (
@@ -33,22 +72,27 @@ const LoginPage = () => {
         backgroundColor: theme.colors.dark[8], 
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        position: 'relative' // Для LoadingOverlay
       }}
     >
-      <Container size="xs" px={0}>
+      {/* Оверлей загрузки */}
+      <LoadingOverlay visible={mutation.isPending} overlayProps={{ radius: "sm", blur: 2 }} />
+      
+      <Container size="xs" px={0}> 
         <Box 
           component="form" 
-          onSubmit={handleSubmit}
+          onSubmit={form.onSubmit(handleSubmit)} // Используем form.onSubmit
           style={{
             padding: '2rem',
             borderRadius: theme.radius.md,
             background: theme.colors.dark[7],
             boxShadow: `5px 5px 10px ${theme.colors.dark[9]}, -5px -5px 10px ${theme.colors.dark[6]}`,
+            position: 'relative' // Убедимся, что оверлей не перекрывает
           }}
         >
           <Center mb="xl">
-            <Title order={2} style={{ color: theme.white, fontWeight: 900 }}>
+            <Title order={2} style={{ color: theme.white, fontWeight: 900 }}> 
               Photomatrix ERP
             </Title>
           </Center>
@@ -61,10 +105,9 @@ const LoginPage = () => {
             label="Email"
             placeholder="your@email.com"
             required
-            type="email" // Добавим тип email
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
+            type="email"
             mb="md"
+            {...form.getInputProps('email')} // Используем form
             styles={{
               label: { color: theme.colors.gray[5] },
               input: {
@@ -88,9 +131,8 @@ const LoginPage = () => {
             label="Пароль"
             placeholder="Ваш пароль"
             required
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
             mb="xl"
+            {...form.getInputProps('password')} // Используем form
             styles={{
               label: { color: theme.colors.gray[5] },
               input: {
@@ -115,6 +157,7 @@ const LoginPage = () => {
             type="submit"
             variant="filled"
             color="blue"
+            loading={mutation.isPending} // Добавляем состояние загрузки
             styles={(theme) => ({ 
               root: {
                 background: theme.colors.blue[7],

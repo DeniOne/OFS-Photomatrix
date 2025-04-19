@@ -19,7 +19,7 @@ async def login_access_token(
     """
     Получить JWT токен доступа
     """
-    user = await crud_user.user.authenticate(
+    user = await crud_user.authenticate(
         db, email=form_data.username, password=form_data.password
     )
     
@@ -30,7 +30,7 @@ async def login_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    if not await crud_user.user.is_active(user):
+    if not await crud_user.is_active(user):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неактивный пользователь"
