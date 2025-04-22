@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { ActionIcon, Badge, Group, Paper, Table, Tooltip, Text, Menu, Box, Loader, Alert } from '@mantine/core';
-import { IconEdit, IconTrash, IconPlus, IconDotsVertical } from '@tabler/icons-react';
+import { ActionIcon, Badge, Group, Paper, Table, Text, Box, Loader, Alert } from '@mantine/core';
+import { IconEdit, IconTrash } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFetchDivisions, useDeleteDivisionMutation } from '../api/divisionApi';
 import { Division, DivisionType } from '../../../types/division';
@@ -107,19 +107,21 @@ export function DivisionTable({ onEdit, onDelete, onCreateDepartment, onCreateDi
 
   return (
     <Paper shadow="xs" p="md" radius="sm">
-      <Table striped highlightOnHover>
-        <thead>
-          <tr>
-            <th style={{ width: '40%' }}>Название</th>
-            <th style={{ width: '15%' }}>Тип</th>
-            <th style={{ width: '30%' }}>Организация</th>
-            <th style={{ width: '15%' }}>Действия</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table striped highlightOnHover withTableBorder withColumnBorders>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th style={{ width: '30%' }}>Название</Table.Th>
+            <Table.Th style={{ width: '10%' }}>Код</Table.Th>
+            <Table.Th style={{ width: '15%' }}>Тип</Table.Th>
+            <Table.Th style={{ width: '25%' }}>Организация</Table.Th>
+            <Table.Th style={{ width: '10%' }}>Статус</Table.Th>
+            <Table.Th style={{ width: '10%' }}>Действия</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
           {structuredDivisions.map((division) => (
-            <tr key={division.id}>
-              <td>
+            <Table.Tr key={division.id}>
+              <Table.Td>
                 <Group spacing="xs">
                   {division.type === DivisionType.DIVISION && division.parent_id && (
                     <Text style={{ marginLeft: '20px' }} size="sm">
@@ -132,59 +134,38 @@ export function DivisionTable({ onEdit, onDelete, onCreateDepartment, onCreateDi
                     </Text>
                   )}
                 </Group>
-              </td>
-              <td>
+              </Table.Td>
+              <Table.Td>{division.code || '-'}</Table.Td>
+              <Table.Td>
                 <Badge 
                   color={division.type === DivisionType.DEPARTMENT ? 'blue' : 'green'}
-                  variant="filled"
                 >
                   {division.type === DivisionType.DEPARTMENT ? 'Департамент' : 'Отдел'}
                 </Badge>
-              </td>
-              <td>
+              </Table.Td>
+              <Table.Td>
                 <Text size="sm">
                   {division.organization_name || 'Не указана'}
                 </Text>
-              </td>
-              <td>
-                <Group spacing={0} position="right">
-                  <Tooltip label="Редактировать">
-                    <ActionIcon 
-                      onClick={() => onEdit(division, divisions)}
-                      color="blue"
-                    >
-                      <IconEdit size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Menu position="bottom-end" shadow="md">
-                    <Menu.Target>
-                      <ActionIcon>
-                        <IconDotsVertical size={16} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      {division.type === DivisionType.DEPARTMENT && (
-                        <Menu.Item 
-                          icon={<IconPlus size={16} />}
-                          onClick={() => onCreateDivision(divisions)}
-                        >
-                          Добавить отдел
-                        </Menu.Item>
-                      )}
-                      <Menu.Item 
-                        icon={<IconTrash size={16} />}
-                        color="red"
-                        onClick={() => handleDelete(division)}
-                      >
-                        Удалить
-                      </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
+              </Table.Td>
+              <Table.Td>
+                <Badge color={division.is_active ? 'green' : 'red'}>
+                  {division.is_active ? 'Активно' : 'Неактивно'}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Group gap="xs">
+                  <ActionIcon variant="subtle" color="blue" onClick={() => onEdit(division, divisions)}>
+                    <IconEdit size={16} />
+                  </ActionIcon>
+                  <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(division)}>
+                    <IconTrash size={16} />
+                  </ActionIcon>
                 </Group>
-              </td>
-            </tr>
+              </Table.Td>
+            </Table.Tr>
           ))}
-        </tbody>
+        </Table.Tbody>
       </Table>
     </Paper>
   );

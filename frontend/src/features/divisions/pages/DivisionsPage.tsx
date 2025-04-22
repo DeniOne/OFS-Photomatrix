@@ -1,177 +1,184 @@
-import { useState } from 'react';
-import { Button, Group, Modal, Title, Box, Text, Stack } from '@mantine/core';
+import { useState, useEffect } from 'react';
+import { Box, Button, Group, Modal, Title, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { IconPlus } from '@tabler/icons-react';
+import { Division, DivisionType } from '../../../types/division';
 import { DivisionForm } from '../components/DivisionForm';
 import { DivisionTable } from '../components/DivisionTable';
-import { useDisclosure } from '@mantine/hooks';
-import { Division, DivisionType } from '../../../types/division';
+import { useAuth } from '../../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { Breadcrumbs } from '@mantine/core';
 
 export function DivisionsPage() {
-  const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
-  const [deleteModalOpened, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
-  const [editModalOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
-  const [divisionToEdit, setDivisionToEdit] = useState<Division | null>(null);
-  const [divisionToDelete, setDivisionToDelete] = useState<Division | null>(null);
-  const [availableDivisions, setAvailableDivisions] = useState<Division[]>([]);
-  const [departmentFormOpen, { open: openDepartmentForm, close: closeDepartmentForm }] = useDisclosure(false);
-  const [divisionFormOpen, { open: openDivisionForm, close: closeDivisionForm }] = useDisclosure(false);
+  const [isCreateDepartmentModalOpen, setIsCreateDepartmentModalOpen] = useState(false);
+  const [isCreateDivisionModalOpen, setIsCreateDivisionModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedDivision, setSelectedDivision] = useState<Division | null>(null);
+  const [allDivisions, setAllDivisions] = useState<Division[]>([]);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
-  const handleEditDivision = (division: Division, allDivisions: Division[]) => {
-    setDivisionToEdit(division);
-    setAvailableDivisions(allDivisions);
-    openEditModal();
+  // Проверка аутентификации
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Закрытие всех модальных окон
+  const handleCloseModals = () => {
+    setIsCreateDepartmentModalOpen(false);
+    setIsCreateDivisionModalOpen(false);
+    setIsEditModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setSelectedDivision(null);
   };
 
-  const handleDeleteDivision = (division: Division) => {
-    setDivisionToDelete(division);
-    openDeleteModal();
+  // Обработчики для открытия модальных окон создания
+  const handleOpenCreateDepartmentModal = (divisions: Division[]) => {
+    setAllDivisions(divisions);
+    setIsCreateDepartmentModalOpen(true);
   };
 
-  const resetModals = () => {
-    setDivisionToEdit(null);
-    setDivisionToDelete(null);
-    setAvailableDivisions([]);
+  const handleOpenCreateDivisionModal = (divisions: Division[]) => {
+    setAllDivisions(divisions);
+    setIsCreateDivisionModalOpen(true);
   };
 
-  const handleCreateDepartment = (allDivisions: Division[]) => {
-    setAvailableDivisions(allDivisions);
-    openDepartmentForm();
+  // Обработчик для открытия модального окна редактирования
+  const handleOpenEditModal = (division: Division, divisions: Division[]) => {
+    setSelectedDivision(division);
+    setAllDivisions(divisions);
+    setIsEditModalOpen(true);
   };
 
-  const handleCreateDivision = (allDivisions: Division[]) => {
-    setAvailableDivisions(allDivisions);
-    openDivisionForm();
+  // Обработчик для открытия модального окна удаления
+  const handleOpenDeleteModal = (division: Division) => {
+    setSelectedDivision(division);
+    setIsDeleteModalOpen(true);
   };
+
+  // Обработчик успешного сохранения формы
+  const handleFormSuccess = () => {
+    handleCloseModals();
+    notifications.show({
+      title: "Успешно",
+      message: "Операция выполнена успешно",
+      color: "green",
+    });
+  };
+
+  const items = [
+    { title: 'Главная', href: '/' },
+    { title: 'Подразделения', href: '#' },
+  ].map((item, index) => (
+    <Text key={index} onClick={() => item.href !== '#' && navigate(item.href)}>
+      {item.title}
+    </Text>
+  ));
 
   return (
     <Box p="md">
-      <Stack spacing="md">
-        <Group position="apart" mb="md">
-          <Title order={2}>Организационная структура</Title>
-          <Group>
-            <Button 
-              leftIcon={<IconPlus size={16} />} 
-              onClick={() => openDepartmentForm()}
-              variant="filled"
-              color="blue"
-            >
-              Добавить департамент
-            </Button>
-            <Button 
-              leftIcon={<IconPlus size={16} />} 
-              onClick={() => openDivisionForm()}
-              variant="outline"
-              color="blue"
-            >
-              Добавить отдел
-            </Button>
-          </Group>
+      <Group justify="space-between" mb="lg">
+        <div>
+          <Breadcrumbs>{items}</Breadcrumbs>
+          <Title order={1} mt="md">Подразделения</Title>
+        </div>
+        <Group>
+          <Button 
+            leftSection={<IconPlus size={16} />} 
+            onClick={() => handleOpenCreateDepartmentModal(allDivisions)}
+          >
+            Добавить департамент
+          </Button>
         </Group>
+      </Group>
 
-        <Box>
-          <Text size="sm" color="dimmed" mb="xs">
-            Управление организационной структурой компании. Здесь вы можете добавлять, редактировать и удалять департаменты и отделы.
-          </Text>
-        </Box>
-
-        <DivisionTable 
-          onEdit={handleEditDivision} 
-          onDelete={handleDeleteDivision} 
-          onCreateDepartment={handleCreateDepartment}
-          onCreateDivision={handleCreateDivision}
-        />
-      </Stack>
+      <DivisionTable
+        onEdit={handleOpenEditModal}
+        onDelete={handleOpenDeleteModal}
+        onCreateDepartment={handleOpenCreateDepartmentModal}
+        onCreateDivision={handleOpenCreateDivisionModal}
+      />
 
       {/* Модальное окно для создания департамента */}
       <Modal
-        opened={departmentFormOpen}
-        onClose={closeDepartmentForm}
-        title="Создание нового департамента"
-        size="lg"
+        opened={isCreateDepartmentModalOpen}
+        onClose={handleCloseModals}
+        title="Создать департамент"
+        centered
       >
-        <DivisionForm 
-          onSuccess={() => {
-            closeDepartmentForm();
-            resetModals();
-          }}
-          availableParents={availableDivisions}
-          defaultType={DivisionType.DEPARTMENT}
+        <DivisionForm
+          type={DivisionType.DEPARTMENT}
+          onCancel={handleCloseModals}
+          onSuccess={handleFormSuccess}
+          allDivisions={allDivisions}
         />
       </Modal>
 
       {/* Модальное окно для создания отдела */}
       <Modal
-        opened={divisionFormOpen}
-        onClose={closeDivisionForm}
-        title="Создание нового отдела"
-        size="lg"
+        opened={isCreateDivisionModalOpen}
+        onClose={handleCloseModals}
+        title="Создать отдел"
+        centered
       >
-        <DivisionForm 
-          onSuccess={() => {
-            closeDivisionForm();
-            resetModals();
-          }}
-          availableParents={availableDivisions}
-          defaultType={DivisionType.DIVISION}
+        <DivisionForm
+          type={DivisionType.DIVISION}
+          onCancel={handleCloseModals}
+          onSuccess={handleFormSuccess}
+          allDivisions={allDivisions}
         />
       </Modal>
 
-      {/* Модальное окно для редактирования */}
+      {/* Модальное окно для редактирования подразделения */}
       <Modal
-        opened={editModalOpened}
-        onClose={() => {
-          closeEditModal();
-          resetModals();
-        }}
-        title={`Редактирование ${divisionToEdit?.type === DivisionType.DEPARTMENT ? 'департамента' : 'отдела'}`}
-        size="lg"
+        opened={isEditModalOpen}
+        onClose={handleCloseModals}
+        title={selectedDivision?.type === DivisionType.DEPARTMENT
+          ? "Редактировать департамент"
+          : "Редактировать отдел"
+        }
+        centered
       >
-        {divisionToEdit && (
-          <DivisionForm 
-            divisionToEdit={divisionToEdit}
-            onSuccess={() => {
-              closeEditModal();
-              resetModals();
-            }}
-            availableParents={availableDivisions}
+        {selectedDivision && (
+          <DivisionForm
+            initialData={selectedDivision}
+            type={selectedDivision.type}
+            onCancel={handleCloseModals}
+            onSuccess={handleFormSuccess}
+            allDivisions={allDivisions}
           />
         )}
       </Modal>
 
-      {/* Модальное окно для удаления */}
+      {/* Модальное окно для подтверждения удаления */}
       <Modal
-        opened={deleteModalOpened}
-        onClose={() => {
-          closeDeleteModal();
-          resetModals();
-        }}
-        title="Подтвердите удаление"
-        size="sm"
+        opened={isDeleteModalOpen}
+        onClose={handleCloseModals}
+        title="Подтверждение удаления"
+        centered
       >
-        <Box p="md">
-          <Text mb="md">
-            Вы уверены, что хотите удалить {divisionToDelete?.type === DivisionType.DEPARTMENT ? 'департамент' : 'отдел'} <strong>{divisionToDelete?.name}</strong>?
-            {divisionToDelete?.type === DivisionType.DEPARTMENT && ' Это также удалит все отделы, связанные с этим департаментом.'}
-          </Text>
-          <Group position="right">
-            <Button variant="outline" onClick={() => {
-              closeDeleteModal();
-              resetModals();
-            }}>
-              Отмена
-            </Button>
-            <Button 
-              color="red"
-              onClick={() => {
-                // Удаление будет обрабатываться в DivisionTable через onDelete callback
-                closeDeleteModal();
-                resetModals();
-              }}
-            >
-              Удалить
-            </Button>
-          </Group>
-        </Box>
+        <Text mb="md">
+          Вы уверены, что хотите удалить {selectedDivision?.type === DivisionType.DEPARTMENT
+            ? "департамент"
+            : "отдел"
+          } "{selectedDivision?.name}"?
+        </Text>
+        <Group position="right">
+          <Button variant="outline" onClick={handleCloseModals}>Отмена</Button>
+          <Button color="red" onClick={() => {
+            handleCloseModals();
+            notifications.show({
+              title: "Успешно",
+              message: "Подразделение удалено",
+              color: "green",
+            });
+          }}>
+            Удалить
+          </Button>
+        </Group>
       </Modal>
     </Box>
   );

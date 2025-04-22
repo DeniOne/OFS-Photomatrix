@@ -7,6 +7,10 @@ import { Division, DivisionCreate, DivisionType } from '../../../types/division'
 import { useCreateDivision, useUpdateDivision } from '../api/divisionApi';
 import { useOrganizations } from '../../organizations/api/organizationApi';
 
+// Префиксы для кодов подразделений
+const DEPARTMENT_PREFIX = 'DEP_';
+const DIVISION_PREFIX = 'OTD_';
+
 // Схема валидации для формы подразделения
 const divisionSchema = z.object({
   name: z.string().min(1, 'Название обязательно').max(100, 'Название слишком длинное'),
@@ -49,10 +53,15 @@ export function DivisionForm({
   // Автоматически используем ID холдинга если он доступен
   const defaultOrganizationId = organizationId || (holdingOrganization?.id || null);
 
+  // Получаем начальный префикс на основе типа
+  const getInitialPrefix = (type: DivisionType) => {
+    return type === DivisionType.DEPARTMENT ? DEPARTMENT_PREFIX : DIVISION_PREFIX;
+  };
+
   const form = useForm({
     initialValues: {
       name: '',
-      code: '',
+      code: getInitialPrefix(defaultType),
       description: '',
       organization_id: defaultOrganizationId,
       parent_id: parentId || null,
@@ -61,6 +70,26 @@ export function DivisionForm({
     },
     validate: zodResolver(divisionSchema),
   });
+
+  // Обработчик изменения значения поля кода с сохранением префикса
+  const handleCodeChange = (value: string) => {
+    if (divisionToEdit) {
+      // Не меняем префикс при редактировании
+      form.setFieldValue('code', value);
+      return;
+    }
+
+    const currentPrefix = form.values.type === DivisionType.DEPARTMENT 
+      ? DEPARTMENT_PREFIX 
+      : DIVISION_PREFIX;
+    
+    if (!value.startsWith(currentPrefix)) {
+      // Если пользователь пытается удалить префикс, восстанавливаем его
+      form.setFieldValue('code', currentPrefix + value.replace(currentPrefix, ''));
+    } else {
+      form.setFieldValue('code', value);
+    }
+  };
 
   useEffect(() => {
     if (divisionToEdit) {
@@ -77,7 +106,7 @@ export function DivisionForm({
     } else {
       form.setValues({
         name: '',
-        code: '',
+        code: getInitialPrefix(defaultType),
         description: '',
         organization_id: defaultOrganizationId,
         parent_id: parentId || null,
@@ -97,6 +126,15 @@ export function DivisionForm({
     if (!isSection) {
       form.setFieldValue('parent_id', null);
     }
+
+    // Если не редактируем существующее подразделение, меняем префикс при смене типа
+    if (!divisionToEdit) {
+      const newPrefix = isSection ? DIVISION_PREFIX : DEPARTMENT_PREFIX;
+      const codeWithoutPrefix = form.values.code
+        .replace(DEPARTMENT_PREFIX, '')
+        .replace(DIVISION_PREFIX, '');
+      form.setFieldValue('code', newPrefix + codeWithoutPrefix);
+    }
   };
 
   const filteredAvailableParents = availableParents.filter(
@@ -107,6 +145,17 @@ export function DivisionForm({
   const handleSubmit = async (values: typeof form.values) => {
     try {
       setIsSubmitting(true);
+      
+      // Проверяем, что код содержит что-то помимо префикса
+      const prefix = values.type === DivisionType.DEPARTMENT 
+        ? DEPARTMENT_PREFIX 
+        : DIVISION_PREFIX;
+      
+      if (!divisionToEdit && values.code === prefix) {
+        form.setFieldError('code', `Необходимо добавить код после префикса ${prefix}`);
+        setIsSubmitting(false);
+        return;
+      }
       
       const finalValues = {
         ...values,
@@ -137,6 +186,8 @@ export function DivisionForm({
       } else {
         await createDivision.mutateAsync(divisionData);
         form.reset();
+        // Сбрасываем форму с правильным префиксом
+        form.setFieldValue('code', getInitialPrefix(values.type));
         notifications.show({
           title: 'Успешно!',
           message: divisionData.type === DivisionType.DEPARTMENT ? 
@@ -159,6 +210,11 @@ export function DivisionForm({
       setIsSubmitting(false);
     }
   };
+
+  // Получаем текущий префикс на основе выбранного типа
+  const currentPrefix = form.values.type === DivisionType.DEPARTMENT 
+    ? DEPARTMENT_PREFIX 
+    : DIVISION_PREFIX;
 
   return (
     <Box pos="relative">
@@ -190,10 +246,13 @@ export function DivisionForm({
           
           <TextInput
             label="Код"
-            placeholder="Например: IT_DEPT"
+            placeholder={`${currentPrefix}123`}
+            description={`Код автоматически начинается с ${currentPrefix}`}
             required
-            {...form.getInputProps('code')}
-            disabled={isSubmitting}
+            value={form.values.code}
+            onChange={(e) => handleCodeChange(e.target.value)}
+            error={form.errors.code || (form.values.code === currentPrefix && !divisionToEdit ? `Необходимо добавить код после префикса ${currentPrefix}` : '')}
+            disabled={isSubmitting || !!divisionToEdit}
           />
           
           <Select

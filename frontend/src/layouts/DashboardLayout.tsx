@@ -1,6 +1,15 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Box, Text, ActionIcon, Avatar, useMantineTheme } from '@mantine/core';
+import { 
+  Box, 
+  Text, 
+  ActionIcon, 
+  Avatar, 
+  useMantineTheme, 
+  AppShell, 
+  Group,
+  Button,
+} from '@mantine/core';
 import {
   IconLayoutDashboard,
   IconPackage,
@@ -9,14 +18,15 @@ import {
   IconSettings,
   IconLogout,
   IconMenu2,
-  IconBell,
-  IconAdjustments,
   IconBuildingSkyscraper,
   IconBuildingCommunity,
   IconBuildingPavilion,
-  IconFunction
+  IconFunction,
+  IconUserShield,
+  IconSearch,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
+import { useAuth } from '../hooks/useAuth';
 
 // Тип для ссылок навигации
 type NavLinkProps = {
@@ -65,11 +75,13 @@ type DashboardLayoutProps = {
 };
 
 // Основной компонент лейаута
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  const location = useLocation();
+export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const theme = useMantineTheme();
+  const location = useLocation();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const [opened, setOpened] = useState(false);
   
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -96,6 +108,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       case '/departments': return 'Управление департаментами';
       case '/divisions': return 'Управление отделами';
       case '/functions': return 'Управление функциями';
+      case '/positions': return 'Управление должностями';
       case '/users': return 'Пользователи';
       case '/reports': return 'Отчеты и аналитика';
       case '/settings': return 'Настройки';
@@ -103,32 +116,30 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     }
   };
 
-  const sidebarWidth = isSidebarOpen ? '250px' : '70px';
-  
   return (
-    <Box
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        // Используем основной фон из темы
-        backgroundColor: theme.colors.dark[7],
+    <AppShell
+      padding="md"
+      navbar={{
+        width: isSidebarOpen ? 250 : 70,
+        breakpoint: 'sm',
       }}
+      header={{ height: 60 }}
     >
-      {/* Боковое меню */}
-      <Box
-        component="aside"
-        style={{
-          width: sidebarWidth,
-          backgroundColor: theme.colors.dark[8], // Фон сайдбара чуть светлее
-          borderRight: `1px solid ${theme.colors.dark[6]}`,
-          padding: '15px',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'width 0.3s ease',
-          boxShadow: '2px 0 5px rgba(0, 0, 0, 0.2)',
-          overflow: 'hidden'
-        }}
-      >
+      <AppShell.Header>
+        <Group p="md" justify="space-between" style={{ height: '100%' }}>
+          <Text fw={700} size="lg">{getPageTitle()}</Text>
+          <Group>
+            <ActionIcon variant="default" onClick={() => console.log('Действие')} size={30}>
+              <IconSettings size={20} stroke={1.5} />
+            </ActionIcon>
+            <ActionIcon variant="default" onClick={() => console.log('Действие')} size={30}>
+              <IconSearch size={20} stroke={1.5} />
+            </ActionIcon>
+          </Group>
+        </Group>
+      </AppShell.Header>
+      
+      <AppShell.Navbar p="md">
         {/* Логотип и кнопка сворачивания */}
         <Box
           style={{
@@ -145,8 +156,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </Text>
           )}
           <ActionIcon
-            onClick={toggleSidebar}
-            variant="subtle" // Используем subtle для лучшей интеграции
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            variant="subtle"
             color="gray"
             size="lg"
           >
@@ -199,6 +210,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             isSidebarOpen={isSidebarOpen}
           />
           <NavLink
+            to="/positions"
+            label="Должности"
+            icon={<IconUserShield size={20} />}
+            active={location.pathname.startsWith('/positions')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
             to="/users"
             label="Пользователи"
             icon={<IconUsers size={20} />}
@@ -229,7 +247,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             borderTop: `1px solid ${theme.colors.dark[6]}`,
           }}
         >
-           <Box
+          <Box
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -246,50 +264,18 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Text size="xs" c="dimmed" truncate>Администратор</Text>
               </Box>
             )}
-             {/* Иконка выхода видна всегда */}
             <ActionIcon variant="subtle" color="gray" onClick={handleLogout}>
               <IconLogout size={18} />
             </ActionIcon>
           </Box>
         </Box>
-      </Box>
+      </AppShell.Navbar>
       
-      {/* Основной контент */}
-      <Box component="main" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Верхняя панель */}
-        <Box
-          component="header"
-          style={{
-            height: '60px', // Чуть ниже
-            borderBottom: `1px solid ${theme.colors.dark[6]}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 25px',
-            backgroundColor: theme.colors.dark[8], // Как у сайдбара
-            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.15)'
-          }}
-        >
-          <Text size="lg" fw={600} c="white">
-            {getPageTitle()}
-          </Text>
-          <Box style={{ display: 'flex', gap: '15px' }}>
-            <ActionIcon variant="subtle" color="gray" size="lg">
-              <IconBell size={20} />
-            </ActionIcon>
-            <ActionIcon variant="subtle" color="gray" size="lg">
-              <IconAdjustments size={20} />
-            </ActionIcon>
-          </Box>
-        </Box>
-        
-        {/* Область для контента страницы */}
-        <Box style={{ flex: 1, overflowY: 'auto', padding: '25px' }}>
-          {children}
-        </Box>
-      </Box>
-    </Box>
+      <AppShell.Main>
+        {children}
+      </AppShell.Main>
+    </AppShell>
   );
 };
 
-export { DashboardLayout }; // Именованный экспорт 
+export default DashboardLayout; 

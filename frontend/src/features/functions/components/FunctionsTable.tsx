@@ -8,7 +8,8 @@ import {
   Badge, 
   TextInput, 
   Loader, 
-  ScrollArea 
+  ScrollArea,
+  Stack
 } from '@mantine/core';
 import { IconEdit, IconTrash, IconSearch } from '@tabler/icons-react';
 import { Function } from '../../../types/function';
@@ -37,11 +38,10 @@ export function FunctionsTable({
 
   // Рендерим таблицу с функциями
   return (
-    <>
+    <Stack>
       {/* Поиск функций */}
       <TextInput
         placeholder="Поиск функций..."
-        mb="md"
         icon={<IconSearch size={16} />}
         value={searchTerm}
         onChange={(e) => onSearchChange(e.target.value)}
@@ -49,56 +49,54 @@ export function FunctionsTable({
 
       {/* Таблица функций */}
       <ScrollArea>
-        <Table striped highlightOnHover>
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Код</th>
-              <th>Описание</th>
-              <th>Статус</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table striped highlightOnHover withTableBorder withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Название</Table.Th>
+              <Table.Th>Код</Table.Th>
+              <Table.Th>Отдел</Table.Th>
+              <Table.Th>Описание</Table.Th>
+              <Table.Th>Статус</Table.Th>
+              <Table.Th>Действия</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {data.length === 0 ? (
-              <tr>
-                <td colSpan={5}>
-                  <Text color="dimmed" align="center">Функций не найдено</Text>
-                </td>
-              </tr>
+              <Table.Tr>
+                <Table.Td colSpan={6}>
+                  <Text c="dimmed" ta="center">Функций не найдено</Text>
+                </Table.Td>
+              </Table.Tr>
             ) : (
               data.map((func) => (
-                <tr key={func.id}>
-                  <td>{func.name}</td>
-                  <td>{func.code}</td>
-                  <td>{func.description || '—'}</td>
-                  <td>
+                <Table.Tr key={func.id}>
+                  <Table.Td>{func.name}</Table.Td>
+                  <Table.Td>{func.code}</Table.Td>
+                  <Table.Td>{func.section?.name || '-'}</Table.Td>
+                  <Table.Td>{func.description || '—'}</Table.Td>
+                  <Table.Td>
                     <Badge 
                       color={func.is_active ? 'green' : 'red'}
                     >
                       {func.is_active ? 'Активна' : 'Неактивна'}
                     </Badge>
-                  </td>
-                  <td>
-                    <Group spacing={0} position="left">
-                      <Tooltip label="Редактировать">
-                        <ActionIcon onClick={() => onEdit(func)}>
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Удалить">
-                        <ActionIcon color="red" onClick={() => onDelete(func)}>
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <ActionIcon variant="subtle" color="blue" onClick={() => onEdit(func)}>
+                        <IconEdit size={16} />
+                      </ActionIcon>
+                      <ActionIcon variant="subtle" color="red" onClick={() => onDelete(func)}>
+                        <IconTrash size={16} />
+                      </ActionIcon>
                     </Group>
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))
             )}
-          </tbody>
+          </Table.Tbody>
         </Table>
       </ScrollArea>
-    </>
+    </Stack>
   );
 } 

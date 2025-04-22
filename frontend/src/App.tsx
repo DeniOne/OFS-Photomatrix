@@ -8,6 +8,7 @@ import { Notifications } from '@mantine/notifications';
 import './App.css';
 import theme from './styles/theme'; // Возвращаем импорт темы
 import { DashboardLayout } from './layouts/DashboardLayout';
+import AutoLoginButton from './components/AutoLoginButton';
 
 // --- Ленивая загрузка страниц ---
 // Используем динамический импорт с приоритетами
@@ -19,6 +20,7 @@ const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage'));
 const DivisionsPage = lazy(() => import('./pages/DivisionsPage'));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const FunctionsPage = lazy(() => import('./features/functions/pages/FunctionsPage.tsx'));
+const PositionsPage = lazy(() => import('./features/positions/pages/PositionsPage'));
 const TestPage = lazy(() => import('./pages/TestPage'));
 // Убираем тестовую страницу
 // const TestModalPage = lazy(() => import('./pages/TestModalPage')); 
@@ -78,6 +80,13 @@ function App() {
       <BrowserRouter>
         <MantineProvider theme={theme} defaultColorScheme="dark">
           <Notifications position="top-right" />
+          {/* Кнопка автологина - видна на всех страницах */}
+          <AutoLoginButton 
+            position="fixed" 
+            bottom={20} 
+            right={20} 
+            size="sm"
+          />
           {/* Показываем начальный лоадер */}
           {isLoading ? (
             <LoadingOverlay visible={true} overlayProps={{ radius: "sm", blur: 2 }} />
@@ -151,6 +160,14 @@ function App() {
                   path="/functions"
                   element={isAuthenticated ? 
                     <WrappedRoute element={<FunctionsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/positions"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<PositionsPage />} /> : 
                     <Navigate to="/login" replace />
                   }
                 />

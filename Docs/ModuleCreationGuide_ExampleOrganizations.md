@@ -768,4 +768,621 @@ export function OrganizationForm({ organizationToEdit = null, onSuccess }: Organ
 *   **Зависимости при удалении:** На бэкенде перед удалением сущности проверяйте наличие связанных данных (например, нельзя удалить организацию, если у нее есть подразделения), чтобы избежать ошибок БД и обеспечить целостность данных.
 *   **React Query:** Используйте для управления серверным состоянием, кэширования, инвалидации кэша при мутациях.
 
-Эта памятка должна помочь создавать новые модули единообразно и с учетом уже решенных проблем. 
+Эта памятка должна помочь создавать новые модули единообразно и с учетом уже решенных проблем.
+
+## 6. Стандартная структура страницы и компонентов
+
+Ниже представлен стандартный шаблон страницы и компонентов, который следует использовать при создании новых модулей в проекте.
+
+### 6.1 Структура страницы (Page)
+
+Страницы имеют следующую стандартную структуру:
+
+```tsx
+// features/module-name/pages/ModulePage.tsx
+import { useState, useMemo } from 'react';
+import { Box, Title, Button, Group, Modal, Text, Alert } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { IconPlus, IconAlertCircle } from '@tabler/icons-react';
+
+import { ModuleTable } from '../components/ModuleTable';
+import ModuleForm from '../components/ModuleForm';
+import { Module } from '../../../types/module';
+import { useModules, useCreateModule, useUpdateModule, useDeleteModule } from '../api/moduleApi';
+
+const ModulePage: React.FC = () => {
+  // 1. HOOKS ДЛЯ УПРАВЛЕНИЯ СОСТОЯНИЕМ
+  const queryClient = useQueryClient();
+  const [openedFormModal, { open: openFormModal, close: closeFormModal }] = useDisclosure(false);
+  const [openedDeleteModal, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
+
+  const [editingItem, setEditingItem] = useState<Module | null>(null);
+  const [deletingItem, setDeletingItem] = useState<Module | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValue, setFilterValue] = useState<number | null>(null);
+
+  // 2. ЗАПРОС ДАННЫХ
+  const { 
+    data: modulesData, 
+    isLoading: isLoadingModules, 
+    isError: isErrorModules,
+    error: modulesError
+  } = useModules(filterValue);
+
+  // 3. МУТАЦИИ ДЛЯ CRUD-ОПЕРАЦИЙ
+  const createMutation = useCreateModule();
+  const updateMutation = useUpdateModule();
+  const deleteMutation = useDeleteModule();
+
+  // 4. ОБРАБОТЧИКИ СОБЫТИЙ
+  const handleCloseModals = () => {
+    closeFormModal();
+    closeDeleteModal();
+    setEditingItem(null);
+    setDeletingItem(null);
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingItem(null);
+    openFormModal();
+  };
+
+  const handleOpenEditModal = (item: Module) => {
+    setEditingItem(item);
+    openFormModal();
+  };
+
+  const handleOpenDeleteModal = (item: Module) => {
+    setDeletingItem(item);
+    openDeleteModal();
+  };
+
+  const handleFormSubmit = (data: any) => {
+    if (editingItem) {
+      updateMutation.mutate(
+        { id: editingItem.id, data },
+        {
+          onSuccess: () => {
+            handleCloseModals();
+          }
+        }
+      );
+    } else {
+      createMutation.mutate(
+        data,
+        {
+          onSuccess: () => {
+            handleCloseModals();
+          }
+        }
+      );
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (deletingItem) {
+      deleteMutation.mutate(deletingItem.id);
+    }
+  };
+
+  // 5. МЕМОИЗАЦИЯ ДАННЫХ (при необходимости)
+  const filteredItems = useMemo(() => {
+    if (!modulesData) return [];
+    if (!searchTerm) return modulesData;
+
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    return modulesData.filter(item => 
+      item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.code.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+  }, [modulesData, searchTerm]);
+
+  // 6. СТАТУСЫ ЗАГРУЗКИ
+  const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+
+  // 7. РЕНДЕР КОМПОНЕНТА
+  return (
+    <Box>
+      {/* ЗАГОЛОВОК И КНОПКА ДОБАВЛЕНИЯ */}
+      <Group mb="lg">
+        <Button leftSection={<IconPlus size={14} />} onClick={handleOpenCreateModal}>
+          Добавить запись
+        </Button>
+      </Group>
+
+      {/* СООБЩЕНИЕ ОБ ОШИБКЕ (если есть) */}
+      {isErrorModules && (
+        <Alert icon={<IconAlertCircle size="1rem" />} title="Ошибка загрузки данных" color="red" mb="md">
+          Не удалось загрузить данные: {modulesError?.message || 'Неизвестная ошибка'}
+        </Alert>
+      )}
+
+      {/* ТАБЛИЦА С ДАННЫМИ */}
+      <ModuleTable
+        data={filteredItems}
+        loading={isLoadingModules}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        filterValue={filterValue}
+        onFilterChange={setFilterValue}
+        onEdit={handleOpenEditModal}
+        onDelete={handleOpenDeleteModal}
+      />
+
+      {/* МОДАЛЬНОЕ ОКНО ФОРМЫ */}
+      <Modal
+        opened={openedFormModal}
+        onClose={handleCloseModals}
+        title={editingItem ? 'Редактировать запись' : 'Создать новую запись'}
+        size="lg"
+        overlayProps={{
+          backgroundOpacity: 0.55,
+          blur: 3,
+        }}
+        closeOnClickOutside={!isMutating}
+        closeOnEscape={!isMutating}
+      >
+        <ModuleForm
+          key={editingItem?.id ?? 'create'}
+          onSubmit={handleFormSubmit}
+          onCancel={handleCloseModals}
+          initialData={editingItem}
+          isLoading={createMutation.isPending || updateMutation.isPending}
+        />
+      </Modal>
+
+      {/* МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ */}
+      <Modal
+        opened={openedDeleteModal}
+        onClose={handleCloseModals}
+        title="Подтверждение удаления"
+        size="sm"
+        overlayProps={{
+          backgroundOpacity: 0.55,
+          blur: 3,
+        }}
+        closeOnClickOutside={!isMutating}
+        closeOnEscape={!isMutating}
+      >
+        <Text size="sm">
+          Вы уверены, что хотите удалить "{deletingItem?.name}"? Это действие необратимо.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={handleCloseModals} disabled={deleteMutation.isPending}>
+            Отмена
+          </Button>
+          <Button color="red" onClick={handleConfirmDelete} loading={deleteMutation.isPending}>
+            Удалить
+          </Button>
+        </Group>
+      </Modal>
+    </Box>
+  );
+};
+
+export default ModulePage;
+```
+
+### 6.2 Структура таблицы (Table)
+
+Компонент таблицы следует стандартному шаблону:
+
+```tsx
+// features/module-name/components/ModuleTable.tsx
+import React from 'react';
+import { Table, ActionIcon, Badge, Group, TextInput, Select, Box, Loader, Text, Stack } from '@mantine/core';
+import { IconEdit, IconTrash, IconSearch } from '@tabler/icons-react';
+import { Module } from '../../../types/module';
+
+interface ModuleTableProps {
+  data: Module[];
+  loading: boolean;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
+  filterValue: number | null;
+  onFilterChange: (value: number | null) => void;
+  filterOptions?: { value: string; label: string }[];
+  onEdit: (module: Module) => void;
+  onDelete: (module: Module) => void;
+}
+
+export const ModuleTable: React.FC<ModuleTableProps> = ({
+  data,
+  loading,
+  searchTerm,
+  onSearchChange,
+  filterValue,
+  onFilterChange,
+  filterOptions = [],
+  onEdit,
+  onDelete,
+}) => {
+  // 1. СОСТОЯНИЕ ЗАГРУЗКИ
+  if (loading) {
+    return (
+      <Box pt="xl" style={{ display: 'flex', justifyContent: 'center' }}>
+        <Loader />
+      </Box>
+    );
+  }
+
+  // 2. СОСТОЯНИЕ ПУСТЫХ ДАННЫХ
+  if (data.length === 0) {
+    return (
+      <Stack>
+        {/* ПОИСК И ФИЛЬТРАЦИЯ */}
+        <Group mb="md">
+          <TextInput
+            placeholder="Поиск по названию, коду или описанию"
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.currentTarget.value)}
+            leftSection={<IconSearch size={16} />}
+            style={{ flex: 1 }}
+          />
+          {filterOptions.length > 0 && (
+            <Select
+              placeholder="Фильтр"
+              data={filterOptions}
+              value={filterValue ? String(filterValue) : null}
+              onChange={(value) => onFilterChange(value ? Number(value) : null)}
+              clearable
+              style={{ width: 250 }}
+            />
+          )}
+        </Group>
+        <Text ta="center" c="dimmed" size="sm">
+          Нет данных для отображения
+        </Text>
+      </Stack>
+    );
+  }
+
+  // 3. ФОРМИРОВАНИЕ СТРОК ТАБЛИЦЫ
+  const rows = data.map((item) => (
+    <Table.Tr key={item.id}>
+      <Table.Td>{item.name}</Table.Td>
+      <Table.Td>{item.code}</Table.Td>
+      {/* Дополнительные ячейки для других полей */}
+      <Table.Td>
+        <Badge color={item.is_active ? 'green' : 'red'}>
+          {item.is_active ? 'Активна' : 'Неактивна'}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <ActionIcon variant="subtle" color="blue" onClick={() => onEdit(item)}>
+            <IconEdit size={16} />
+          </ActionIcon>
+          <ActionIcon variant="subtle" color="red" onClick={() => onDelete(item)}>
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  ));
+
+  // 4. РЕНДЕР КОМПОНЕНТА
+  return (
+    <Stack>
+      {/* ПОИСК И ФИЛЬТРАЦИЯ */}
+      <Group mb="md">
+        <TextInput
+          placeholder="Поиск по названию, коду или описанию"
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.currentTarget.value)}
+          leftSection={<IconSearch size={16} />}
+          style={{ flex: 1 }}
+        />
+        {filterOptions.length > 0 && (
+          <Select
+            placeholder="Фильтр"
+            data={filterOptions}
+            value={filterValue ? String(filterValue) : null}
+            onChange={(value) => onFilterChange(value ? Number(value) : null)}
+            clearable
+            style={{ width: 250 }}
+          />
+        )}
+      </Group>
+
+      {/* ТАБЛИЦА */}
+      <Table striped highlightOnHover withTableBorder withColumnBorders>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Название</Table.Th>
+            <Table.Th>Код</Table.Th>
+            {/* Дополнительные заголовки для других полей */}
+            <Table.Th>Статус</Table.Th>
+            <Table.Th>Действия</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
+      </Table>
+    </Stack>
+  );
+};
+```
+
+### 6.3 Структура формы (Form)
+
+Компонент формы следует стандартному шаблону:
+
+```tsx
+// features/module-name/components/ModuleForm.tsx
+import React, { useEffect } from 'react';
+import { 
+  TextInput, Button, Group, Select, Textarea, 
+  Box, Switch, Stack, LoadingOverlay
+} from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { Module } from '../../../types/module';
+
+interface ModuleFormProps {
+  initialData?: Module | null;
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}
+
+const ModuleForm: React.FC<ModuleFormProps> = ({
+  initialData = null,
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
+  // 1. ИНИЦИАЛИЗАЦИЯ ФОРМЫ
+  const form = useForm({
+    initialValues: {
+      name: initialData?.name || '',
+      code: initialData?.code || '',
+      // Другие поля...
+      is_active: initialData?.is_active ?? true,
+    },
+    validate: {
+      name: (value) => (value.trim().length < 3 ? 'Название должно содержать минимум 3 символа' : null),
+      code: (value) => (value.trim().length < 2 ? 'Код должен содержать минимум 2 символа' : null),
+      // Валидация других полей...
+    },
+  });
+
+  // 2. ОБРАБОТЧИК ОТПРАВКИ ФОРМЫ
+  const handleSubmit = (values: typeof form.values) => {
+    onSubmit(values);
+  };
+
+  // 3. РЕНДЕР КОМПОНЕНТА
+  return (
+    <Box pos="relative">
+      <LoadingOverlay visible={isLoading} />
+      
+      <form onSubmit={form.onSubmit(handleSubmit)}>
+        <Stack>
+          <TextInput
+            label="Название"
+            placeholder="Введите название"
+            withAsterisk
+            {...form.getInputProps('name')}
+          />
+          
+          <TextInput
+            label="Код"
+            placeholder="Введите код"
+            withAsterisk
+            {...form.getInputProps('code')}
+            disabled={!!initialData} // Обычно код нельзя менять при редактировании
+          />
+          
+          {/* Другие поля формы */}
+          
+          <Switch
+            label="Активна"
+            checked={form.values.is_active}
+            onChange={(event) => form.setFieldValue('is_active', event.currentTarget.checked)}
+          />
+          
+          <Group justify="flex-end" mt="xl">
+            <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+              Отмена
+            </Button>
+            <Button type="submit" loading={isLoading}>
+              {initialData ? 'Сохранить' : 'Создать'}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Box>
+  );
+};
+
+export default ModuleForm;
+```
+
+### 6.4 Структура API клиента
+
+```tsx
+// features/module-name/api/moduleApi.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../../api/client';
+import { Module, ModuleCreate, ModuleUpdate } from '../../../types/module';
+import { notifications } from '@mantine/notifications';
+import { IconCheck, IconX } from '@tabler/icons-react';
+
+const API_URL = '/api/v1/modules/';
+
+// --- Функции для вызова API ---
+
+// Получение списка с опциональной фильтрацией
+const fetchModules = async (filter_id?: number | null): Promise<Module[]> => {
+  let url = API_URL;
+  if (filter_id) {
+    url += `?filter_id=${filter_id}`;
+  }
+  const response = await api.get<Module[]>(url);
+  return response.data;
+};
+
+// Получение одного элемента по ID
+const fetchModule = async (id: number): Promise<Module> => {
+  const response = await api.get<Module>(`/api/v1/modules/${id}`);
+  return response.data;
+};
+
+// Создание нового элемента
+const createModule = async (data: ModuleCreate): Promise<Module> => {
+  const response = await api.post<Module>(API_URL, data);
+  return response.data;
+};
+
+// Обновление элемента
+const updateModule = async ({ id, data }: { id: number; data: ModuleUpdate }): Promise<Module> => {
+  const response = await api.put<Module>(`/api/v1/modules/${id}`, data);
+  return response.data;
+};
+
+// Удаление элемента
+const deleteModule = async (id: number): Promise<void> => {
+  await api.delete(`/api/v1/modules/${id}`);
+};
+
+// --- Хуки React Query ---
+
+// Хук для получения списка с опциональной фильтрацией
+export const useModules = (filter_id?: number | null) => {
+  return useQuery<Module[], Error>({
+    queryKey: ['modules', 'byFilter', filter_id],
+    queryFn: () => fetchModules(filter_id),
+  });
+};
+
+// Хук для получения одного элемента по ID
+export const useModule = (id: number) => {
+  return useQuery<Module, Error>({
+    queryKey: ['module', id],
+    queryFn: () => fetchModule(id),
+    enabled: !!id,
+  });
+};
+
+// Хук для создания
+export const useCreateModule = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<Module, Error, ModuleCreate>({
+    mutationFn: createModule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modules'] });
+      notifications.show({
+        title: 'Успешно',
+        message: 'Запись успешно создана',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось создать запись: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+
+// Хук для обновления
+export const useUpdateModule = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<Module, Error, { id: number; data: ModuleUpdate }>({
+    mutationFn: updateModule,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['modules'] });
+      queryClient.invalidateQueries({ queryKey: ['module', data.id] });
+      notifications.show({
+        title: 'Успешно',
+        message: 'Запись успешно обновлена',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось обновить запись: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+
+// Хук для удаления
+export const useDeleteModule = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<void, Error, number>({
+    mutationFn: deleteModule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modules'] });
+      notifications.show({
+        title: 'Успешно',
+        message: 'Запись успешно удалена',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось удалить запись: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+```
+
+### 6.5 Лучшие практики оформления страниц
+
+1. **Расположение элементов на странице**:
+   - Кнопка добавления новой записи должна располагаться под заголовком, выровненная слева
+   - При наличии фильтров, их следует размещать над таблицей
+   - Основная таблица должна занимать всю доступную ширину
+   - Пагинация (если есть) располагается под таблицей
+
+2. **Модальные окна**:
+   - Используйте стандартные настройки для модальных окон:
+     ```tsx
+     <Modal
+       overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+       closeOnClickOutside={!isLoading}
+       closeOnEscape={!isLoading}
+     />
+     ```
+   - Размер модального окна должен быть достаточным для размещения формы (`size="lg"`)
+   - Окно подтверждения удаления должно быть меньше (`size="sm"`)
+
+3. **Стилизация таблиц**:
+   - Всегда используйте стандартный набор свойств для таблиц:
+     ```tsx
+     <Table striped highlightOnHover withTableBorder withColumnBorders>
+     ```
+   - Статус элемента отображайте как `Badge` с соответствующим цветом
+   - Кнопки действий размещайте в последнем столбце
+
+4. **Обработка ошибок и состояний загрузки**:
+   - Всегда отображайте состояние загрузки (`<Loader />`)
+   - При ошибке показывайте `<Alert>` с сообщением об ошибке
+   - Блокируйте кнопки во время выполнения мутаций
+
+5. **Формы**:
+   - Используйте `useForm` из Mantine для управления формами
+   - Располагайте поля в формах вертикально, используя `<Stack>`
+   - Обязательные поля помечайте `withAsterisk`
+   - Кнопки отмены и подтверждения размещайте в правом нижнем углу формы
+   - Во время загрузки блокируйте форму с помощью `<LoadingOverlay />`
+
+Эти стандарты обеспечат единообразный внешний вид и поведение всех страниц в приложении. 

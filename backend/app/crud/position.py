@@ -22,6 +22,31 @@ class CRUDPosition(CRUDBase[Position, PositionCreate, PositionUpdate]):
         )
         result = await db.execute(query)
         return result.scalars().first()
+    
+    async def get_by_code_and_section(
+        self, db: AsyncSession, *, code: str, section_id: int
+    ) -> Optional[Position]:
+        """
+        Получить должность по коду и ID отдела
+        """
+        query = select(self.model).filter(
+            self.model.code == code, 
+            self.model.section_id == section_id
+        )
+        result = await db.execute(query)
+        return result.scalars().first()
+    
+    async def get_by_section(
+        self, db: AsyncSession, *, section_id: int, skip: int = 0, limit: int = 100
+    ) -> List[Position]:
+        """
+        Получить список должностей по ID отдела
+        """
+        query = select(self.model).filter(
+            self.model.section_id == section_id
+        ).offset(skip).limit(limit)
+        result = await db.execute(query)
+        return result.scalars().all()
         
     async def get_by_division_or_section(
         self, db: AsyncSession, *, division_id: Optional[int] = None, section_id: Optional[int] = None, 

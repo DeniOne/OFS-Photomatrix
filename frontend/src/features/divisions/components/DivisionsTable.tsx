@@ -129,7 +129,7 @@ export function DivisionsTable({
         </Group>
       </Box>
 
-      <Table striped highlightOnHover>
+      <Table striped highlightOnHover withTableBorder withColumnBorders>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Название</Table.Th>
@@ -162,28 +162,14 @@ export function DivisionsTable({
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Menu position="bottom-end" withinPortal>
-                    <Menu.Target>
-                      <ActionIcon variant="subtle">
-                        <IconDotsVertical size="1rem" />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Item 
-                        leftSection={<IconEdit size="1rem" />}
-                        onClick={() => handleEdit(division)}
-                      >
-                        Редактировать
-                      </Menu.Item>
-                      <Menu.Item 
-                        leftSection={<IconTrash size="1rem" />}
-                        color="red"
-                        onClick={() => setDeleteConfirmId(division.id)}
-                      >
-                        Удалить
-                      </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
+                  <Group gap="xs">
+                    <ActionIcon variant="subtle" color="blue" onClick={() => handleEdit(division)}>
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                    <ActionIcon variant="subtle" color="red" onClick={() => setDeleteConfirmId(division.id)}>
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))

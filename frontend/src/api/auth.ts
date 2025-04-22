@@ -88,6 +88,20 @@ export const loginUser = async (credentials: LoginCredentials): Promise<LoginRes
 };
 
 /**
+ * Автоматический вход в систему с предустановленными учетными данными администратора
+ * @returns {Promise<LoginResponse>} Результат авторизации
+ */
+export const autoLogin = async (): Promise<LoginResponse> => {
+  // Используем фиксированные учетные данные администратора
+  const credentials: LoginCredentials = {
+    username: 'admin@example.com',
+    password: 'admin'
+  };
+  
+  return loginUser(credentials);
+};
+
+/**
  * Выход из системы
  */
 export const logoutUser = (): void => {

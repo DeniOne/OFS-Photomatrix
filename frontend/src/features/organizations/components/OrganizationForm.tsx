@@ -10,6 +10,9 @@ type OrganizationFormProps = {
   organizationToEdit?: Organization | null;
 };
 
+// Префикс для кода организации
+const CODE_PREFIX = 'ORG_';
+
 const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organizationToEdit }) => {
   const createOrganizationMutation = useCreateOrganization();
   const updateOrganizationMutation = useUpdateOrganization();
@@ -18,7 +21,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organiza
   
   // Форма
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(CODE_PREFIX);
   const [orgType, setOrgType] = useState<'HOLDING' | 'LEGAL_ENTITY' | 'LOCATION'>('HOLDING');
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -31,8 +34,23 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organiza
       setOrgType(organizationToEdit.org_type);
       setDescription(organizationToEdit.description || '');
       setIsActive(organizationToEdit.is_active);
+    } else {
+      // Для новой организации устанавливаем префикс
+      setCode(CODE_PREFIX);
     }
   }, [organizationToEdit]);
+  
+  // Обработчик изменения кода для сохранения префикса
+  const handleCodeChange = (value: string) => {
+    if (!organizationToEdit) {
+      // Гарантируем, что код всегда начинается с префикса
+      if (!value.startsWith(CODE_PREFIX)) {
+        setCode(CODE_PREFIX + value.replace(CODE_PREFIX, ''));
+      } else {
+        setCode(value);
+      }
+    }
+  };
   
   // Валидация
   const validateForm = () => {
@@ -45,6 +63,11 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organiza
     
     if (!code.trim()) {
       setError('Код обязателен');
+      return false;
+    }
+    
+    if (!organizationToEdit && code === CODE_PREFIX) {
+      setError('Необходимо добавить код после префикса ' + CODE_PREFIX);
       return false;
     }
     
@@ -104,7 +127,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organiza
         
         // Очищаем форму
         setName('');
-        setCode('');
+        setCode(CODE_PREFIX);
         setOrgType('HOLDING');
         setDescription('');
         setIsActive(true);
@@ -147,12 +170,13 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSuccess, organiza
           
           <TextInput
             label="Код"
-            placeholder="Введите уникальный код (например, MAIN-HQ)"
+            placeholder={`${CODE_PREFIX}123`}
+            description="Код автоматически начинается с ORG_"
             required
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => handleCodeChange(e.target.value)}
             disabled={isSubmitting || !!organizationToEdit}
-            error={!code.trim() && 'Код обязателен'}
+            error={!code.trim() || (code === CODE_PREFIX && !organizationToEdit) ? 'Необходимо добавить код после префикса' : ''}
           />
           
           <Select

@@ -14,7 +14,7 @@ class PositionBase(BaseModel):
     
 class PositionCreate(PositionBase):
     """Схема для создания должности"""
-    pass
+    function_ids: Optional[List[int]] = []
     
 class PositionUpdate(BaseModel):
     """Схема для обновления должности"""
@@ -25,6 +25,7 @@ class PositionUpdate(BaseModel):
     attribute: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    function_ids: Optional[List[int]] = None
     
 class PositionInDBBase(PositionBase):
     """Базовая схема для должности в БД"""
@@ -37,4 +38,4 @@ class PositionInDBBase(PositionBase):
         
 class Position(PositionInDBBase):
     """Схема для возврата должности через API"""
-    pass 
+    function_ids: List[int] = [] 
