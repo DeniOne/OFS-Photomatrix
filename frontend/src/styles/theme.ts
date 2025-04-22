@@ -78,7 +78,7 @@ export const theme: MantineThemeOverride = {
       defaultProps: {
         radius: 'md',
       },
-      styles: (theme: MantineTheme) => ({
+      styles: (_theme: MantineTheme) => ({
         root: {
           // Стили для кнопок
         }
@@ -99,23 +99,19 @@ export const theme: MantineThemeOverride = {
       }),
     },
     TextInput: {
-      styles: (theme: MantineTheme) => ({
+      styles: (_theme: MantineTheme) => ({
         input: {
-          backgroundColor: theme.colors.dark[6],
-          border: `1px solid ${theme.colors.dark[5]}`,
-          color: theme.colors.dark[0],
-          boxShadow: neumorphicShadows.darkInset,
+          backgroundColor: 'var(--mantine-color-dark-6)',
+          borderColor: 'var(--mantine-color-dark-4)',
+          color: 'var(--mantine-color-gray-0)',
           '&::placeholder': {
-            color: theme.colors.dark[3],
+            color: 'var(--mantine-color-dark-3)',
           },
-          '&:focus': {
-            borderColor: theme.colors.primary[6],
-            boxShadow: `inset 3px 3px 6px #141517, inset -3px -3px 6px #25262b`,
-          }
         },
         label: {
-          color: theme.colors.dark[2],
-        }
+          color: 'var(--mantine-color-gray-5)',
+          marginBottom: '4px',
+        },
       }),
     },
   },

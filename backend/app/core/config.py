@@ -10,12 +10,14 @@ class Settings(BaseSettings):
     Настройки приложения с использованием переменных окружения
     """
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    # SECRET_KEY: str = secrets.token_urlsafe(32) # Убираем генерацию при каждом запуске
+    # ЗАМЕНИТЬ НА СЕКРЕТНЫЙ КЛЮЧ ИЗ .ENV!
+    SECRET_KEY: str = "your-super-secret-key-change-me-please-1234567890"
     # 60 минут * 24 часа * 8 дней = 8 дней
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     
-    # CORS настройки
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    # CORS настройки - добавляем адрес фронтенда по умолчанию
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = ["http://localhost:5173"]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:

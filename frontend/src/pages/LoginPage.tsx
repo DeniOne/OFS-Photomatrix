@@ -1,22 +1,15 @@
-import React, { useState } from 'react';
+// import React, { useState } from 'react'; // Убираем неиспользуемые импорты
+import { useForm } from '@mantine/form';
+import { TextInput, PasswordInput, Button, Title, Text, Container, Box, Center } from '@mantine/core';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { loginUser } from '../api/auth'; // Правильный импорт из модуля auth
 import { 
-  TextInput, 
-  PasswordInput, 
-  Button, 
-  Box, 
-  Title, 
-  Text,
-  Container,
-  Center,
   useMantineTheme, 
   LoadingOverlay
 } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
-import { loginUser } from '../api/client'; // Импортируем функцию логина
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -61,8 +54,16 @@ const LoginPage = () => {
   });
 
   // Обработчик сабмита формы
-  const handleSubmit = (values: typeof form.values) => {
-    mutation.mutate({ username: values.email, password: values.password });
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); // Предотвращаем стандартное поведение формы
+    const validationResult = form.validate(); // Валидируем форму
+    if (validationResult.hasErrors) {
+      // Если есть ошибки, ничего не делаем (Mantine покажет их)
+      console.log('Validation errors:', form.errors);
+      return;
+    }
+    // Если ошибок нет, вызываем мутацию
+    mutation.mutate({ username: form.values.email, password: form.values.password });
   };
 
   return (
@@ -82,7 +83,7 @@ const LoginPage = () => {
       <Container size="xs" px={0}> 
         <Box 
           component="form" 
-          onSubmit={form.onSubmit(handleSubmit)} // Используем form.onSubmit
+          onSubmit={handleSubmit} // Используем наш кастомный handleSubmit
           style={{
             padding: '2rem',
             borderRadius: theme.radius.md,

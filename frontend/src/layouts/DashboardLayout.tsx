@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Box, Text, ActionIcon, Avatar, useMantineTheme } from '@mantine/core';
 import {
   IconLayoutDashboard,
@@ -10,8 +10,13 @@ import {
   IconLogout,
   IconMenu2,
   IconBell,
-  IconAdjustments
+  IconAdjustments,
+  IconBuildingSkyscraper,
+  IconBuildingCommunity,
+  IconBuildingPavilion,
+  IconFunction
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 
 // Тип для ссылок навигации
 type NavLinkProps = {
@@ -64,9 +69,21 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const location = useLocation();
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+  
+  // Обработчик выхода из системы
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    notifications.show({
+      title: 'Выход из системы',
+      message: 'Вы успешно вышли из системы',
+      color: 'blue',
+    });
+    navigate('/login');
   };
   
   // Получаем заголовок страницы на основе пути
@@ -75,6 +92,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     switch (location.pathname) {
       case '/dashboard': return 'Обзор системы';
       case '/products': return 'Управление продуктами';
+      case '/organizations': return 'Управление организациями';
+      case '/departments': return 'Управление департаментами';
+      case '/divisions': return 'Управление отделами';
+      case '/functions': return 'Управление функциями';
       case '/users': return 'Пользователи';
       case '/reports': return 'Отчеты и аналитика';
       case '/settings': return 'Настройки';
@@ -150,6 +171,34 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             isSidebarOpen={isSidebarOpen}
           />
           <NavLink
+            to="/organizations"
+            label="Организации"
+            icon={<IconBuildingSkyscraper size={20} />}
+            active={location.pathname.startsWith('/organizations')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
+            to="/departments"
+            label="Департаменты"
+            icon={<IconBuildingCommunity size={20} />}
+            active={location.pathname.startsWith('/departments')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
+            to="/divisions"
+            label="Отделы"
+            icon={<IconBuildingPavilion size={20} />}
+            active={location.pathname.startsWith('/divisions')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
+            to="/functions"
+            label="Функции"
+            icon={<IconFunction size={20} />}
+            active={location.pathname.startsWith('/functions')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
             to="/users"
             label="Пользователи"
             icon={<IconUsers size={20} />}
@@ -197,12 +246,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Text size="xs" c="dimmed" truncate>Администратор</Text>
               </Box>
             )}
-             {/* Иконка выхода видна всегда, если сайдбар открыт */}
-            {isSidebarOpen && (
-              <ActionIcon variant="subtle" color="gray">
-                <IconLogout size={18} />
-              </ActionIcon>
-            )}
+             {/* Иконка выхода видна всегда */}
+            <ActionIcon variant="subtle" color="gray" onClick={handleLogout}>
+              <IconLogout size={18} />
+            </ActionIcon>
           </Box>
         </Box>
       </Box>

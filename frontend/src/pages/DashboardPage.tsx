@@ -1,14 +1,14 @@
-import React from 'react';
-import { DashboardLayout } from '../layouts/DashboardLayout';
-import { Box, Text } from '@mantine/core';
+// import React from 'react'; // Убираем неиспользуемый импорт
+import { Box, Title } from '@mantine/core';
+import { DashboardLayout } from '../layouts/DashboardLayout'; // Используем именованный импорт
 
-export const DashboardPage = () => {
+export const DashboardPage = () => { // Экспортируем именованно, как в App.tsx
   return (
     <DashboardLayout>
-      <Box>
-        <Text size="xl" fw={700} mb="lg">Добро пожаловать на дашборд!</Text>
-        <Text>Здесь будет основное содержимое вашей панели управления.</Text>
-        {/* Добавьте сюда компоненты для дашборда: карточки, графики и т.д. */}
+      <Box p="md">
+        <Title order={2}>Главная страница</Title>
+        {/* Здесь будет содержимое дашборда */}
+        <p>Добро пожаловать в систему OFS Photomatrix!</p>
       </Box>
     </DashboardLayout>
   );

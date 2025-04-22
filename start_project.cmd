@@ -6,62 +6,62 @@ title Запуск проекта OFS-Photomatrix
 echo ╔════════════════════════════════════════╗
 echo ║      ЗАПУСК ПРОЕКТА OFS-PHOTOMATRIX    ║
 echo ╚════════════════════════════════════════╝
+echo.
 
-:: Проверяем наличие всех необходимых файлов
+:: Проверяем наличие скрипта для бэкенда
 if not exist "start_backend.cmd" (
     color 0C
     echo Ошибка: Файл start_backend.cmd не найден!
+    echo Убедитесь, что он находится в той же папке, что и этот скрипт.
     goto END
 )
-
-if not exist "start_frontend.cmd" (
-    color 0C
-    echo Ошибка: Файл start_frontend.cmd не найден!
-    goto END
-)
-
-echo [1] Запускаем бэкенд в отдельном окне...
+echo [1] Запускаем бэкенд (start_backend.cmd) в новом окне...
 start "OFS-Photomatrix Backend" cmd /c start_backend.cmd
+echo    - Окно бэкенда запущено. Смотрите логи там.
 
-echo [2] Ждем 5 секунд для инициализации бэкенда...
-timeout /t 5 /nobreak > nul
-
-echo [3] Проверяем статус бэкенда...
-curl -s http://127.0.0.1:8000/health > nul
-if errorlevel 1 (
-    echo    - Бэкенд еще не запустился, ждем еще 10 секунд...
-    timeout /t 10 /nobreak > nul
-    
-    :: Повторная проверка
-    curl -s http://127.0.0.1:8000/health > nul
-    if errorlevel 1 (
-        color 0E
-        echo    - Предупреждение: Бэкенд не отвечает, но продолжаем запуск фронтенда...
-    ) else (
-        echo    - Бэкенд успешно запущен!
-    )
-) else (
-    echo    - Бэкенд успешно запущен!
+echo [2] Запускаем фронтенд...
+:: Проверяем папку frontend
+if not exist "frontend" (
+    color 0C
+    echo Ошибка: Директория frontend не найдена!
+    echo Убедитесь, что скрипт запущен из корневой папки проекта.
+    goto END
+)
+:: Проверяем package.json
+if not exist "frontend\package.json" (
+    color 0C
+    echo Ошибка: package.json не найден в папке frontend!
+    goto END
 )
 
-echo [4] Запускаем фронтенд...
-start "OFS-Photomatrix Frontend" cmd /c start_frontend.cmd
+:: Надежный запуск фронтенда
+cd frontend
+start "OFS-Photomatrix Frontend" cmd /k "npm run dev"
+cd ..
+echo    - Окно фронтенда запущено. Смотрите логи там.
 
-echo [5] Ждем 5 секунд для инициализации фронтенда...
+echo.
+echo [3] Пауза 5 секунд для инициализации серверов...
 timeout /t 5 /nobreak > nul
-
 echo.
 echo ╔════════════════════════════════════════╗
-echo ║     ПРОЕКТ OFS-PHOTOMATRIX ЗАПУЩЕН     ║
+echo ║        СЕРВЕРЫ ДОЛЖНЫ БЫТЬ ГОТОВЫ     ║
 echo ╚════════════════════════════════════════╝
 echo.
-echo * Бэкенд: http://127.0.0.1:8000/docs
-echo * Фронтенд: http://localhost:5173
+echo * Бэкенд (API Docs): http://127.0.0.1:8000/docs
+echo * Фронтенд:         http://localhost:5173
 echo.
-echo Приложение запущено в отдельных окнах. Для завершения работы:
-echo 1. Закройте окна с бэкендом и фронтендом
-echo 2. Или используйте Ctrl+C в каждом окне
+echo Для остановки закройте окна серверов (Backend и Frontend) или нажмите Ctrl+C в них.
+echo.
+echo ╔════════════════════════════════════════╗
+echo ║   СОВЕТЫ ПО ОПТИМИЗАЦИИ ПРОИЗВОДИТ.   ║
+echo ╚════════════════════════════════════════╝
+echo.
+echo * Для ускорения загрузки фронтенда вы можете:
+echo   1. Закрыть окно фронтенда
+echo   2. Запустить скрипт frontend\clean-simple.ps1 отдельно
+echo      (через PowerShell с флагом -ExecutionPolicy Bypass)
 echo.
 
 :END
-pause 
+pause

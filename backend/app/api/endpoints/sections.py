@@ -24,11 +24,11 @@ async def read_sections(
     Получить список отделов с возможностью фильтрации
     """
     if division_id:
-        sections = await crud_section.section.get_by_division(
+        sections = await crud_section.get_by_division(
             db, division_id=division_id, skip=skip, limit=limit
         )
     else:
-        sections = await crud_section.section.get_multi(
+        sections = await crud_section.get_multi(
             db, skip=skip, limit=limit
         )
     return sections
@@ -43,16 +43,24 @@ async def create_section(
     """
     Создать новый отдел
     """
-    # Проверяем существование подразделения
-    division = await crud_division.division.get(db, id=section_in.division_id)
+    # Проверяем существование подразделения (департамента)
+    division = await crud_division.get(db, id=section_in.division_id)
     if not division:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Подразделение не найдено",
+            detail="Родительское подразделение (департамент) не найдено",
         )
+    # Дополнительная проверка: убедимся, что родитель - это департамент
+    # Импортируй DivisionType из app.models.division или app.types.division если еще не импортирован
+    # from app.models.division import DivisionType # Пример импорта
+    # if division.type != DivisionType.DEPARTMENT:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Родителем отдела может быть только департамент.",
+    #     )
         
     # Проверяем уникальность кода в рамках подразделения
-    existing_section = await crud_section.section.get_by_code_and_division(
+    existing_section = await crud_section.get_by_code_and_division(
         db, code=section_in.code, division_id=section_in.division_id
     )
     if existing_section:
@@ -61,7 +69,7 @@ async def create_section(
             detail="Отдел с таким кодом уже существует в данном подразделении",
         )
             
-    return await crud_section.section.create(db, obj_in=section_in)
+    return await crud_section.create(db, obj_in=section_in)
 
 @router.get("/{id}", response_model=Section)
 async def read_section(
@@ -73,7 +81,7 @@ async def read_section(
     """
     Получить отдел по ID
     """
-    section = await crud_section.section.get(db, id=id)
+    section = await crud_section.get(db, id=id)
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -92,7 +100,7 @@ async def update_section(
     """
     Обновить отдел
     """
-    section = await crud_section.section.get(db, id=id)
+    section = await crud_section.get(db, id=id)
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -104,7 +112,7 @@ async def update_section(
        (section_in.division_id and section_in.division_id != section.division_id):
         division_id = section_in.division_id or section.division_id
         code = section_in.code or section.code
-        existing_section = await crud_section.section.get_by_code_and_division(
+        existing_section = await crud_section.get_by_code_and_division(
             db, code=code, division_id=division_id
         )
         if existing_section and existing_section.id != id:
@@ -122,7 +130,7 @@ async def update_section(
                 detail="Подразделение не найдено",
             )
             
-    return await crud_section.section.update(db, db_obj=section, obj_in=section_in)
+    return await crud_section.update(db, db_obj=section, obj_in=section_in)
 
 @router.delete("/{id}", response_model=Section)
 async def delete_section(
@@ -134,7 +142,7 @@ async def delete_section(
     """
     Удалить отдел
     """
-    section = await crud_section.section.get(db, id=id)
+    section = await crud_section.get(db, id=id)
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -143,4 +151,4 @@ async def delete_section(
         
     # Здесь можно добавить дополнительные проверки, например, на наличие должностей связанных с этим отделом
     
-    return await crud_section.section.remove(db, id=id) 
+    return await crud_section.remove(db, id=id) 

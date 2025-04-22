@@ -1,111 +1,74 @@
-from typing import Any, List, Optional
+from typing import List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app import crud
+from app.api import deps
 from app.db.base import get_db
-from app.api.deps import get_current_active_user
-from app.crud import division as crud_division
-from app.crud import organization as crud_organization
-from app.models.user import User
-from app.schemas.division import Division, DivisionCreate, DivisionUpdate, DivisionWithChildren
+from app.schemas import division as schemas
+from app.models import user as models
 
 router = APIRouter()
 
-@router.get("/", response_model=List[Division])
+@router.get("/", response_model=List[schemas.Division])
 async def read_divisions(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    organization_id: Optional[int] = Query(None, description="Фильтр по организации"),
-    parent_id: Optional[int] = Query(None, description="Фильтр по родительскому подразделению"),
-    current_user: User = Depends(get_current_active_user),
+    organization_id: Optional[int] = Query(None, description="Фильтр по ID организации"),
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """
-    Получить список подразделений с возможностью фильтрации
-    """
-    if organization_id:
-        divisions = await crud_division.division.get_by_organization(
-            db, organization_id=organization_id, skip=skip, limit=limit
-        )
-    elif parent_id is not None:
-        # Временно используем стандартный фильтр, в будущем можно добавить метод в CRUD
-        divisions = await crud_division.division.get_multi(
-            db, skip=skip, limit=limit
-        )
-        divisions = [d for d in divisions if d.parent_id == parent_id]
-    else:
-        divisions = await crud_division.division.get_multi(
-            db, skip=skip, limit=limit
-        )
+    """Получить список всех подразделений с возможностью фильтрации по организации"""
+    divisions = await crud.division.get_divisions(
+        db=db, skip=skip, limit=limit, organization_id=organization_id
+    )
     return divisions
 
-@router.get("/root", response_model=List[Division])
-async def read_root_divisions(
-    db: AsyncSession = Depends(get_db),
-    organization_id: Optional[int] = Query(None, description="ID организации"),
-    current_user: User = Depends(get_current_active_user),
-) -> Any:
-    """
-    Получить корневые подразделения (без родителя)
-    """
-    if not organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Необходимо указать ID организации",
-        )
-    return await crud_division.division.get_root_divisions(db, organization_id=organization_id)
-
-@router.post("/", response_model=Division)
+@router.post("/", response_model=schemas.Division, status_code=status.HTTP_201_CREATED)
 async def create_division(
     *,
     db: AsyncSession = Depends(get_db),
-    division_in: DivisionCreate,
-    current_user: User = Depends(get_current_active_user),
+    division_in: schemas.DivisionCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """
-    Создать новое подразделение
-    """
+    """Создать новое подразделение"""
     # Проверяем существование организации
-    organization = await crud_organization.organization.get(db, id=division_in.organization_id)
+    organization = await crud.organization.get(db=db, id=division_in.organization_id)
     if not organization:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Организация не найдена",
+            detail=f"Организация с ID {division_in.organization_id} не найдена",
         )
-        
-    # Проверяем уникальность кода в рамках организации
-    existing_division = await crud_division.division.get_by_code_and_org(
-        db, code=division_in.code, organization_id=division_in.organization_id
-    )
-    if existing_division:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Подразделение с таким кодом уже существует в данной организации",
-        )
-        
+    
     # Проверяем существование родительского подразделения, если указано
     if division_in.parent_id:
-        parent = await crud_division.division.get(db, id=division_in.parent_id)
+        parent = await crud.division.get_division(db=db, division_id=division_in.parent_id)
         if not parent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Родительское подразделение не найдено",
+                detail=f"Родительское подразделение с ID {division_in.parent_id} не найдено",
             )
-            
-    return await crud_division.division.create(db, obj_in=division_in)
+        # Проверяем, что родительское подразделение принадлежит той же организации
+        if parent.organization_id != division_in.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Родительское подразделение должно принадлежать той же организации",
+            )
+    
+    division = await crud.division.create_division(db=db, division_in=division_in)
+    return division
 
-@router.get("/{id}", response_model=Division)
+@router.get("/{division_id}", response_model=schemas.Division)
 async def read_division(
     *,
     db: AsyncSession = Depends(get_db),
-    id: int,
-    current_user: User = Depends(get_current_active_user),
+    division_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """
-    Получить подразделение по ID
-    """
-    division = await crud_division.division.get(db, id=id)
+    """Получить подразделение по ID"""
+    division = await crud.division.get_division(db=db, division_id=division_id)
     if not division:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -113,66 +76,97 @@ async def read_division(
         )
     return division
 
-@router.put("/{id}", response_model=Division)
+@router.put("/{division_id}", response_model=schemas.Division)
 async def update_division(
     *,
     db: AsyncSession = Depends(get_db),
-    id: int,
-    division_in: DivisionUpdate,
-    current_user: User = Depends(get_current_active_user),
+    division_id: int,
+    division_in: schemas.DivisionUpdate,
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """
-    Обновить подразделение
-    """
-    division = await crud_division.division.get(db, id=id)
+    """Обновить подразделение"""
+    division = await crud.division.get_division(db=db, division_id=division_id)
     if not division:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Подразделение не найдено",
         )
-        
-    # Если меняется организация или код, проверяем уникальность кода в рамках организации
-    if (division_in.code and division_in.code != division.code) or \
-       (division_in.organization_id and division_in.organization_id != division.organization_id):
-        org_id = division_in.organization_id or division.organization_id
-        code = division_in.code or division.code
-        existing_division = await crud_division.division.get_by_code_and_org(
-            db, code=code, organization_id=org_id
-        )
-        if existing_division and existing_division.id != id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Подразделение с таким кодом уже существует в данной организации",
-            )
+    
+    # Если изменяется родительское подразделение, проверяем его существование и принадлежность к организации
+    if division_in.parent_id is not None and division_in.parent_id != division.parent_id:
+        if division_in.parent_id > 0:
+            parent = await crud.division.get_division(db=db, division_id=division_in.parent_id)
+            if not parent:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Родительское подразделение с ID {division_in.parent_id} не найдено",
+                )
             
-    # Если меняется родитель, проверяем его существование
-    if division_in.parent_id and division_in.parent_id != division.parent_id:
-        parent = await crud_division.division.get(db, id=division_in.parent_id)
-        if not parent:
+            # Определяем ID организации - берем либо из обновления, либо из текущего объекта
+            organization_id = division_in.organization_id or division.organization_id
+            
+            # Проверяем, что родительское подразделение принадлежит той же организации
+            if parent.organization_id != organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Родительское подразделение должно принадлежать той же организации",
+                )
+    
+    # Если изменяется организация, проверяем ее существование
+    if division_in.organization_id is not None and division_in.organization_id != division.organization_id:
+        organization = await crud.organization.get(db=db, id=division_in.organization_id)
+        if not organization:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Родительское подразделение не найдено",
+                detail=f"Организация с ID {division_in.organization_id} не найдена",
             )
-            
-    return await crud_division.division.update(db, db_obj=division, obj_in=division_in)
+    
+    division = await crud.division.update_division(db=db, db_obj=division, obj_in=division_in)
+    return division
 
-@router.delete("/{id}", response_model=Division)
+@router.delete("/{division_id}", response_model=schemas.Division)
 async def delete_division(
     *,
     db: AsyncSession = Depends(get_db),
-    id: int,
-    current_user: User = Depends(get_current_active_user),
+    division_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """
-    Удалить подразделение
-    """
-    division = await crud_division.division.get(db, id=id)
+    """Удалить подразделение"""
+    division = await crud.division.get_division(db=db, division_id=division_id)
     if not division:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Подразделение не найдено",
         )
-        
-    # Здесь можно добавить дополнительные проверки, например, на наличие дочерних подразделений или отделов
     
-    return await crud_division.division.remove(db, id=id) 
+    # Проверяем наличие дочерних подразделений
+    query = select(models.Division).filter(models.Division.parent_id == division_id)
+    result = await db.execute(query)
+    children = result.scalars().all()
+    if len(children) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя удалить подразделение, имеющее дочерние подразделения",
+        )
+    
+    division = await crud.division.delete_division(db=db, division_id=division_id)
+    return division
+
+@router.get("/organization/{organization_id}/tree", response_model=List[schemas.DivisionWithRelations])
+async def read_organization_division_tree(
+    *,
+    db: AsyncSession = Depends(get_db),
+    organization_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Получить иерархическое дерево подразделений организации"""
+    # Проверяем существование организации
+    organization = await crud.organization.get(db=db, id=organization_id)
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Организация с ID {organization_id} не найдена",
+        )
+    
+    division_tree = await crud.division.get_division_tree(db=db, organization_id=organization_id)
+    return division_tree 

@@ -1,103 +1,154 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { getToken } from './auth';
+import { notifications } from '@mantine/notifications';
 
-// Определяем базовый URL для API
-// Vite использует import.meta.env для переменных окружения
-// Переменные должны начинаться с VITE_
-// Значение по умолчанию - http://localhost:8000/api/v1
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+// Настройки API клиента
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const DEFAULT_TIMEOUT = 10000; // 10 секунд для таймаута
 
-console.log(`API Base URL: ${API_BASE_URL}`); // Добавим лог для проверки
-
-// Создаем экземпляр axios с базовой конфигурацией
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+// Создание экземпляра Axios с базовыми настройками
+export const api: AxiosInstance = axios.create({
+  baseURL: API_URL,
+  timeout: DEFAULT_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
-    // Здесь можно будет добавить заголовок авторизации (Bearer token),
-    // когда сделаем получение токена при логине
-    // 'Authorization': `Bearer ${token}`
   },
 });
 
-// Интерцептор запросов для добавления токена
-apiClient.interceptors.request.use(
+// Интерсептор для добавления токена в заголовок запросов
+api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
+    console.error('Ошибка запроса:', error);
     return Promise.reject(error);
   }
 );
 
-// Можно добавить интерцепторы для обработки ошибок или токенов
-// apiClient.interceptors.response.use(...);
-
-// Тип для данных нового пользователя
-interface NewUserPayload {
-  email: string;
-  password: string;
-  full_name: string;
-  role?: string;
-}
-
-// Функция для создания пользователя
-export const createUser = async (userData: NewUserPayload): Promise<any> => {
-  try {
-    // Убедись, что путь /users правильный
-    const response = await apiClient.post('/users/', userData);
-    return response.data; // Возвращаем данные созданного пользователя
-  } catch (error) {
-    console.error("Ошибка при создании пользователя:", error);
-    // Лучше пробросить ошибку, чтобы react-query мог ее обработать
-    if (axios.isAxiosError(error)) {
-      // Доступ к деталям ошибки axios
-      throw new Error(error.response?.data?.detail || error.message);
-    } else {
-      throw error; // Пробрасываем неизвестную ошибку
-    }
+// Интерсептор для обработки ответов и ошибок
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response;
+  },
+  (error: AxiosError) => {
+    handleApiError(error);
+    return Promise.reject(error);
   }
+);
+
+// Функция для обработки ошибок API
+const handleApiError = (error: AxiosError) => {
+  if (error.code === 'ECONNABORTED') {
+    notifications.show({
+      title: 'Ошибка',
+      message: 'Превышено время ожидания запроса. Попробуйте еще раз.',
+      color: 'red',
+    });
+    return;
+  }
+
+  if (!error.response) {
+    notifications.show({
+      title: 'Ошибка соединения',
+      message: 'Не удалось подключиться к серверу. Проверьте подключение к интернету.',
+      color: 'red',
+    });
+    return;
+  }
+
+  const status = error.response.status;
+  let message = 'Произошла неизвестная ошибка';
+
+  switch (status) {
+    case 401:
+      message = 'Необходима авторизация. Пожалуйста, войдите в систему.';
+      // При необходимости можно добавить перенаправление на страницу входа
+      break;
+    case 403:
+      message = 'Доступ запрещен. У вас нет прав для выполнения этого действия.';
+      break;
+    case 404:
+      message = 'Запрашиваемый ресурс не найден.';
+      break;
+    case 422:
+      const validationErrors = (error.response.data as any)?.detail;
+      if (validationErrors) {
+        if (Array.isArray(validationErrors)) {
+          message = validationErrors.map((err: any) => err.msg).join('\n');
+        } else {
+          message = String(validationErrors);
+        }
+      } else {
+        message = 'Ошибка валидации данных.';
+      }
+      break;
+    case 500:
+      message = 'Внутренняя ошибка сервера. Попробуйте позже.';
+      break;
+    default:
+      if ((error.response.data as any)?.detail) {
+        message = (error.response.data as any).detail;
+      }
+  }
+
+  notifications.show({
+    title: `Ошибка ${status}`,
+    message: message,
+    color: 'red',
+  });
 };
 
-// Тип для данных логина
-interface LoginPayload {
-  username: string; // FastAPI Users обычно использует 'username', даже если это email
-  password: string;
-}
+// Вспомогательные функции для работы с API
 
-// Тип ответа при успешном логине (с токеном)
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-}
-
-// Функция для входа пользователя
-export const loginUser = async (credentials: LoginPayload): Promise<LoginResponse> => {
+/**
+ * Создает GET запрос с обработкой ошибок
+ */
+export const apiGet = async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
   try {
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-
-    // Отправляем POST-запрос на правильный эндпоинт
-    const response = await apiClient.post<LoginResponse>(
-      '/auth/login',
-      formData, 
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }
-    );
+    const response = await api.get<T>(url, config);
     return response.data;
   } catch (error) {
-    console.error("Ошибка при входе в систему:", error);
-    if (axios.isAxiosError(error)) {
-      throw new Error(error.response?.data?.detail || 'Неверный email или пароль');
-    } else {
-      throw error;
-    }
+    throw error;
   }
 };
 
-export default apiClient; 
+/**
+ * Создает POST запрос с обработкой ошибок
+ */
+export const apiPost = async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+  try {
+    const response = await api.post<T>(url, data, config);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Создает PUT запрос с обработкой ошибок
+ */
+export const apiPut = async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+  try {
+    const response = await api.put<T>(url, data, config);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Создает DELETE запрос с обработкой ошибок
+ */
+export const apiDelete = async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+  try {
+    const response = await api.delete<T>(url, config);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}; 

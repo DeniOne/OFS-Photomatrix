@@ -1,22 +1,45 @@
-import { useState, useEffect } from 'react';
-import { MantineProvider } from '@mantine/core';
+import { useState, useEffect, Suspense, lazy } from 'react';
+import { MantineProvider, LoadingOverlay } from '@mantine/core';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import '@mantine/core/styles.css';
 import { Notifications } from '@mantine/notifications';
 import './App.css';
-import theme from './styles/theme'; // Подключаем нашу тему
+import theme from './styles/theme'; // Возвращаем импорт темы
+import { DashboardLayout } from './layouts/DashboardLayout';
 
-// Импортируем реальные страницы и лейаут
-import LoginPage from './pages/LoginPage'; 
-import { DashboardPage } from './pages/DashboardPage'; // Используем именованный импорт
-import UsersPage from './pages/UsersPage'; // Импортируем UsersPage
-import OrganizationsPage from './pages/OrganizationsPage'; // Импорт новой страницы
-// DashboardLayout будет использоваться внутри DashboardPage, отдельно импортировать не нужно
+// --- Ленивая загрузка страниц ---
+// Используем динамический импорт с приоритетами
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
+// Для менее важных страниц не используем предзагрузку
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage'));
+const DivisionsPage = lazy(() => import('./pages/DivisionsPage'));
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
+const FunctionsPage = lazy(() => import('./features/functions/pages/FunctionsPage.tsx'));
+const TestPage = lazy(() => import('./pages/TestPage'));
+// Убираем тестовую страницу
+// const TestModalPage = lazy(() => import('./pages/TestModalPage')); 
+// --------------------------------
 
-// Создаем клиент React Query
-const queryClient = new QueryClient();
+// Создаем клиент React Query с оптимизированными настройками
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Не обновлять при фокусе окна
+      staleTime: 1000 * 60 * 5, // Данные устаревают через 5 минут
+      gcTime: 1000 * 60 * 30, // Время сборки мусора (раньше было cacheTime)
+      retry: 1, // Только одна повторная попытка при ошибке
+    },
+  },
+});
+
+// Компонент для оборачивания страниц в лейаут
+const WrappedRoute = ({ element }: { element: React.ReactNode }) => {
+  return <DashboardLayout>{element}</DashboardLayout>;
+};
 
 function App() {
   // Состояние для статуса аутентификации
@@ -30,51 +53,138 @@ function App() {
     setIsLoading(false); // Проверка завершена
   }, []);
 
-  // Пока идет проверка токена, можно показать заглушку или лоадер
-  if (isLoading) {
-    return <div>Загрузка...</div>; // Или <LoadingOverlay visible />
-  }
+  // Предзагружаем компоненты на основе аутентификации
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Если пользователь аутентифицирован, предзагружаем нужные компоненты
+      const preloadComponents = async () => {
+        // Здесь мы загружаем компоненты параллельно для экономии времени
+        const imports = [
+          import('./pages/DashboardPage'),
+          import('./layouts/DashboardLayout')
+        ];
+        await Promise.all(imports);
+      };
+      
+      preloadComponents().catch(console.error);
+    } else {
+      // Если пользователь не аутентифицирован, только LoginPage
+      import('./pages/LoginPage');
+    }
+  }, [isAuthenticated]);
 
   return (
-    // Оборачиваем все в QueryClientProvider
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <MantineProvider theme={theme} defaultColorScheme="dark">
           <Notifications position="top-right" />
-          <Routes>
-            {/* Основные маршруты */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route 
-              path="/dashboard" 
-              element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />}
-            />
-            {/* Добавляем маршрут для пользователей */}
-            <Route 
-              path="/users" 
-              element={isAuthenticated ? <UsersPage /> : <Navigate to="/login" replace />}
-            />
-            {/* Добавляем маршрут для организаций (теперь на верхнем уровне) */}
-            <Route 
-              path="/organizations" // Убираем /dashboard
-              element={isAuthenticated ? <OrganizationsPage /> : <Navigate to="/login" replace />}
-            />
-            
-            {/* Редирект с корня */}
-            <Route 
-              path="/" 
-              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-            />
+          {/* Показываем начальный лоадер */}
+          {isLoading ? (
+            <LoadingOverlay visible={true} overlayProps={{ radius: "sm", blur: 2 }} />
+          ) : (
+            /* Оборачиваем Routes в Suspense */
+            <Suspense
+              fallback={<LoadingOverlay visible={true} overlayProps={{ radius: "sm", blur: 2 }} />}
+            >
+              <Routes>
+                {/* Маршрут для логина (без лейаута) */}
+                <Route path="/login" element={<LoginPage />} />
+                
+                {/* Маршруты с боковой панелью */}
+                <Route 
+                  path="/dashboard" 
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<DashboardPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/users" 
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<UsersPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/organizations"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<OrganizationsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/divisions"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<DivisionsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/divisions/organization/:organizationId"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<DivisionsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/departments"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<DepartmentsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/departments/organization/:organizationId"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<DepartmentsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/functions"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<FunctionsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                {/* Тестовая страница для отладки API (без лейаута) */}
+                <Route 
+                  path="/test" 
+                  element={<TestPage />}
+                />
+                
+                {/* Редирект с корня */}
+                <Route 
+                  path="/" 
+                  element={isAuthenticated ? 
+                    <Navigate to="/dashboard" replace /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
 
-            {/* Маршрут для несуществующих страниц (пока редирект на дашборд) */}
-            <Route 
-              path="*" 
-              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-            />
-          </Routes>
+                {/* Маршрут для несуществующих страниц */}
+                <Route 
+                  path="*" 
+                  element={isAuthenticated ? 
+                    <Navigate to="/dashboard" replace /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+              </Routes>
+            </Suspense>
+          )}
         </MantineProvider>
       </BrowserRouter>
-      {/* Добавляем DevTools */}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Отключаем в продакшене девтулы */}
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

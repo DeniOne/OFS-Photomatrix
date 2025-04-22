@@ -19,6 +19,7 @@ class Section(Base, BaseModel):
     # Отношения
     division = relationship("Division", back_populates="sections")
     positions = relationship("Position", back_populates="section")
+    functions = relationship("Function", back_populates="section")
     
     __tablename__ = "section"
     

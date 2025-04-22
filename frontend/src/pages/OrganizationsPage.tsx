@@ -1,39 +1,66 @@
 import { useState } from 'react';
-import { Title, Button, Table, Loader, Alert, Modal, Box } from '@mantine/core';
+import { Button, Loader, Alert, Box, Group, Text, Modal } from '@mantine/core';
 import { IconPlus, IconAlertCircle } from '@tabler/icons-react';
-import { useOrganizations } from '../features/organizations/api/organizationApi';
-import OrganizationForm from '../features/organizations/components/OrganizationForm';
+import { useOrganizations, useDeleteOrganization } from '../features/organizations/api/organizationApi';
+import { Organization } from '@/types/organization';
+import { OrganizationTable } from '@/features/organizations/components/OrganizationTable';
+import OrganizationForm from '@/features/organizations/components/OrganizationForm';
+import { formModalSettings, confirmModalSettings } from '@/config/modalSettings';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 const OrganizationsPage = () => {
   const { data: organizations, isLoading, error, isError } = useOrganizations();
-  const [modalOpened, setModalOpened] = useState(false);
+  const deleteOrganizationMutation = useDeleteOrganization();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  
+  const [formModalOpened, setFormModalOpened] = useState(false);
+  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [organizationToDelete, setOrganizationToDelete] = useState<number | null>(null);
 
-  // TODO: Добавить обработку состояний (сортировка, пагинация, фильтры)
-  // TODO: Добавить редактирование и удаление
+  // Открыть модальное окно для создания/редактирования
+  const openFormModal = (organization?: Organization) => {
+    setSelectedOrganization(organization || null);
+    setFormModalOpened(true);
+  };
 
-  const rows = organizations?.map((org) => (
-    <Table.Tr key={org.id}>
-      <Table.Td>{org.id}</Table.Td>
-      <Table.Td>{org.name}</Table.Td>
-      <Table.Td>{org.code}</Table.Td>
-      <Table.Td>{org.org_type}</Table.Td>
-      <Table.Td>{org.parent_id || '-'}</Table.Td> 
-      <Table.Td>{org.is_active ? 'Да' : 'Нет'}</Table.Td>
-      {/* Добавить колонку с действиями (редактировать, удалить) */}
-    </Table.Tr>
-  ));
+  // Открыть подтверждение удаления
+  const openDeleteModal = (id: number) => {
+    setOrganizationToDelete(id);
+    setDeleteModalOpened(true);
+  };
+
+  // Подтвердить удаление
+  const confirmDelete = () => {
+    if (organizationToDelete !== null) {
+      deleteOrganizationMutation.mutate(organizationToDelete, {
+        onSuccess: () => {
+          setDeleteModalOpened(false);
+          setOrganizationToDelete(null);
+        }
+      });
+    }
+  };
+
+  // Просмотр деталей организации
+  const handleViewDetails = (id: number) => {
+    navigate(`/organizations/${id}`);
+  };
 
   return (
     <Box p="md">
-      <Title order={2} mb="lg">Управление Организациями</Title>
-      
-      <Button 
-        leftSection={<IconPlus size={14} />} 
-        onClick={() => setModalOpened(true)}
-        mb="md"
-      >
-        Создать Организацию
-      </Button>
+      <Group justify="space-between" mb="lg">
+        <Button 
+          leftSection={<IconPlus size={16} />} 
+          onClick={() => openFormModal()}
+          size="md"
+          color="indigo"
+        >
+          Создать организацию
+        </Button>
+      </Group>
 
       {isLoading && <Loader />}
 
@@ -44,36 +71,54 @@ const OrganizationsPage = () => {
       )}
 
       {!isLoading && !isError && organizations && (
-        <Table striped highlightOnHover withTableBorder withColumnBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>ID</Table.Th>
-              <Table.Th>Название</Table.Th>
-              <Table.Th>Код</Table.Th>
-              <Table.Th>Тип</Table.Th>
-              <Table.Th>Родитель ID</Table.Th>
-              <Table.Th>Активна</Table.Th>
-              {/* <Table.Th>Действия</Table.Th> */}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
-        </Table>
+        <OrganizationTable 
+          organizations={organizations} 
+          onEdit={openFormModal} 
+          onDelete={openDeleteModal}
+          onViewDetails={handleViewDetails}
+        />
       )}
       
-      {/* Модальное окно для создания/редактирования */}
+      {/* Модальное окно для формы создания/редактирования */}
       <Modal
-        opened={modalOpened}
-        onClose={() => setModalOpened(false)}
-        title="Создать Организацию"
-        size="lg"
+        opened={formModalOpened}
+        onClose={() => setFormModalOpened(false)}
+        title={selectedOrganization ? 'Редактирование организации' : 'Создание организации'}
+        {...formModalSettings}
       >
-        <OrganizationForm 
-          onSuccess={() => setModalOpened(false)} // Закрываем модалку при успехе
-          // Передаем тип по умолчанию для создания Холдинга
-          initialValues={{ org_type: 'HOLDING' }}
+        <OrganizationForm
+          organizationToEdit={selectedOrganization} 
+          onSuccess={() => {
+            setFormModalOpened(false);
+            queryClient.invalidateQueries({ queryKey: ['organizations'] });
+          }} 
         />
       </Modal>
 
+      {/* Модальное окно подтверждения удаления */}
+      <Modal
+        opened={deleteModalOpened}
+        onClose={() => setDeleteModalOpened(false)}
+        title="Подтверждение удаления"
+        {...confirmModalSettings}
+      >
+        <Text mb="md">Вы уверены, что хотите удалить эту организацию?</Text>
+        <Group justify="flex-end"> 
+          <Button 
+            variant="outline" 
+            onClick={() => setDeleteModalOpened(false)}
+          >
+            Отмена
+          </Button>
+          <Button 
+            color="red" 
+            onClick={confirmDelete}
+            loading={deleteOrganizationMutation.isPending}
+          >
+            Удалить
+          </Button>
+        </Group>
+      </Modal>
     </Box>
   );
 };
