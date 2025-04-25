@@ -9,6 +9,7 @@ import './App.css';
 import theme from './styles/theme'; // Возвращаем импорт темы
 import { DashboardLayout } from './layouts/DashboardLayout';
 import AutoLoginButton from './components/AutoLoginButton';
+import { isAuthenticated as checkAuthState } from './api/auth';
 
 // --- Ленивая загрузка страниц ---
 // Используем динамический импорт с приоритетами
@@ -21,6 +22,7 @@ const DivisionsPage = lazy(() => import('./pages/DivisionsPage'));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const FunctionsPage = lazy(() => import('./features/functions/pages/FunctionsPage.tsx'));
 const PositionsPage = lazy(() => import('./features/positions/pages/PositionsPage'));
+const StaffPage = lazy(() => import('./features/staff/pages/StaffPage'));
 const TestPage = lazy(() => import('./pages/TestPage'));
 // Убираем тестовую страницу
 // const TestModalPage = lazy(() => import('./pages/TestModalPage')); 
@@ -51,8 +53,25 @@ function App() {
   useEffect(() => {
     // Проверяем наличие токена при загрузке приложения
     const token = localStorage.getItem('access_token');
+    console.log("App: Проверка токена при загрузке:", !!token);
     setIsAuthenticated(!!token); // !! преобразует строку/null в boolean
     setIsLoading(false); // Проверка завершена
+  }, []);
+
+  // Добавляем слушатель событий для обновления состояния авторизации
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const isAuth = checkAuthState();
+      console.log("App: Обновлено состояние авторизации:", isAuth);
+      setIsAuthenticated(isAuth);
+    };
+
+    // Добавляем слушатель события storage
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Предзагружаем компоненты на основе аутентификации
@@ -168,6 +187,14 @@ function App() {
                   path="/positions"
                   element={isAuthenticated ? 
                     <WrappedRoute element={<PositionsPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/staff"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<StaffPage />} /> : 
                     <Navigate to="/login" replace />
                   }
                 />

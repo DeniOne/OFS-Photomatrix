@@ -4,7 +4,7 @@ from app.schemas.organization import Organization, OrganizationCreate, Organizat
 from app.schemas.division import Division, DivisionCreate, DivisionUpdate, DivisionWithRelations
 from app.schemas.section import Section, SectionCreate, SectionUpdate
 from app.schemas.position import Position, PositionCreate, PositionUpdate
-from app.schemas.staff import Staff, StaffCreate, StaffUpdate
+from app.schemas.staff import Staff, StaffCreate, StaffUpdate, StaffCreateResponse
 from app.schemas.staff_position import StaffPosition, StaffPositionCreate, StaffPositionUpdate
 from app.schemas.function import Function, FunctionCreate, FunctionUpdate
 from app.schemas.functional_assignment import FunctionalAssignment, FunctionalAssignmentCreate, FunctionalAssignmentUpdate
@@ -20,7 +20,7 @@ __all__ = [
     "Division", "DivisionCreate", "DivisionUpdate", "DivisionWithChildren", "DivisionWithRelations",
     "Section", "SectionCreate", "SectionUpdate",
     "Position", "PositionCreate", "PositionUpdate",
-    "Staff", "StaffCreate", "StaffUpdate",
+    "Staff", "StaffCreate", "StaffUpdate", "StaffCreateResponse",
     "StaffPosition", "StaffPositionCreate", "StaffPositionUpdate", 
     "Function", "FunctionCreate", "FunctionUpdate",
     "FunctionalAssignment", "FunctionalAssignmentCreate", "FunctionalAssignmentUpdate",

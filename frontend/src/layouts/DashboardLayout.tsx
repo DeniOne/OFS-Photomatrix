@@ -24,9 +24,11 @@ import {
   IconFunction,
   IconUserShield,
   IconSearch,
+  IconUserCheck,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../hooks/useAuth';
+import { logoutUser } from '../api/auth';
 
 // Тип для ссылок навигации
 type NavLinkProps = {
@@ -89,7 +91,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   
   // Обработчик выхода из системы
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
+    logoutUser();
     notifications.show({
       title: 'Выход из системы',
       message: 'Вы успешно вышли из системы',
@@ -109,6 +111,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       case '/divisions': return 'Управление отделами';
       case '/functions': return 'Управление функциями';
       case '/positions': return 'Управление должностями';
+      case '/staff': return 'Управление сотрудниками';
       case '/users': return 'Пользователи';
       case '/reports': return 'Отчеты и аналитика';
       case '/settings': return 'Настройки';
@@ -214,6 +217,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             label="Должности"
             icon={<IconUserShield size={20} />}
             active={location.pathname.startsWith('/positions')}
+            isSidebarOpen={isSidebarOpen}
+          />
+          <NavLink
+            to="/staff"
+            label="Сотрудники"
+            icon={<IconUserCheck size={20} />}
+            active={location.pathname.startsWith('/staff')}
             isSidebarOpen={isSidebarOpen}
           />
           <NavLink

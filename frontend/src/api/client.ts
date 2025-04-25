@@ -1,10 +1,12 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { getToken } from './auth';
+import { getToken, removeToken } from './auth';
 import { notifications } from '@mantine/notifications';
 
 // Настройки API клиента
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const DEFAULT_TIMEOUT = 10000; // 10 секунд для таймаута
+const DEFAULT_TIMEOUT = 15000; // Увеличиваем таймаут до 15 секунд
+
+console.log("API клиент настроен на URL:", API_URL);
 
 // Создание экземпляра Axios с базовыми настройками
 export const api: AxiosInstance = axios.create({
@@ -20,7 +22,10 @@ api.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
+      console.log(`API запрос [${config.method?.toUpperCase()}] ${config.url} с токеном`);
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.log(`API запрос [${config.method?.toUpperCase()}] ${config.url} без токена`);
     }
     return config;
   },
@@ -33,9 +38,27 @@ api.interceptors.request.use(
 // Интерсептор для обработки ответов и ошибок
 api.interceptors.response.use(
   (response: AxiosResponse) => {
+    console.log(`API ответ [${response.status}] ${response.config.url}`);
     return response;
   },
   (error: AxiosError) => {
+    if (error.response) {
+      console.error(`API ошибка [${error.response.status}] ${error.config?.url}:`, error.response.data);
+      
+      // Если ошибка 401 и это не запрос аутентификации - токен устарел или недействителен
+      if (error.response.status === 401 && !error.config?.url?.includes('/auth/login')) {
+        console.warn('Токен недействителен. Очищаем данные авторизации.');
+        removeToken();
+        
+        // Перенаправляем на страницу логина, если это не страница логина и не запрос авторизации
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+    } else {
+      console.error('API ошибка без ответа сервера:', error.message);
+    }
+    
     handleApiError(error);
     return Promise.reject(error);
   }
@@ -67,8 +90,8 @@ const handleApiError = (error: AxiosError) => {
   switch (status) {
     case 401:
       message = 'Необходима авторизация. Пожалуйста, войдите в систему.';
-      // При необходимости можно добавить перенаправление на страницу входа
-      break;
+      // НЕ показываем уведомление для 401, т.к. мы уже обрабатываем это в интерсепторе
+      return;
     case 403:
       message = 'Доступ запрещен. У вас нет прав для выполнения этого действия.';
       break;

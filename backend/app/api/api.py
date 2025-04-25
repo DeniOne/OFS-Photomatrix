@@ -11,6 +11,7 @@ from app.api.endpoints import (
     positions,
     value_products,
     functions,
+    staff,
 )
 
 api_router = APIRouter()
@@ -32,4 +33,6 @@ logging.info("Подключение роутера /value-products...")
 api_router.include_router(value_products.router, prefix="/value-products", tags=["value-products"])
 logging.info("Подключение роутера /functions...")
 api_router.include_router(functions.router, prefix="/functions", tags=["functions"])
+logging.info("Подключение роутера /staff...")
+api_router.include_router(staff.router, prefix="/staff", tags=["staff"])
 logging.info("--- Все роутеры подключены к api_router ---") 

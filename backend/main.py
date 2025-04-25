@@ -43,12 +43,23 @@ async def log_requests(request: Request, call_next):
         raise
 
 # Настройка CORS - РАЗРЕШАЕМ ВСЁ ДЛЯ ОТЛАДКИ!
+origins = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # React dev server
+    "http://localhost",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1",
+    "*",  # Все источники (для отладки)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем все источники для отладки
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
+    expose_headers=["*"],  # Делаем видимыми все заголовки для JS
 )
 
 # # Добавляем специальное middleware для добавления CORS-заголовков вручную (ЗАКОММЕНТИРОВАНО - может конфликтовать)

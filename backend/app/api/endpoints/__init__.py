@@ -8,4 +8,5 @@ import app.api.endpoints.divisions
 import app.api.endpoints.sections
 import app.api.endpoints.positions
 import app.api.endpoints.value_products
-import app.api.endpoints.functions 
+import app.api.endpoints.functions
+import app.api.endpoints.staff 

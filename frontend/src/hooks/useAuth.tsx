@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logoutUser } from '../api/auth';
 
 interface AuthHook {
   isAuthenticated: boolean;
@@ -29,16 +30,18 @@ export const useAuth = (): AuthHook => {
 
     // Добавляем слушатель события изменения localStorage
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-changed', handleStorageChange);
 
     // Очистка слушателя при размонтировании
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-changed', handleStorageChange);
     };
   }, []);
 
   // Функция выхода из системы
   const logout = () => {
-    localStorage.removeItem('access_token');
+    logoutUser();
     setIsAuthenticated(false);
   };
 
