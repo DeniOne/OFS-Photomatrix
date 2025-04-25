@@ -66,15 +66,25 @@ async def validate_document_file(upload_file: UploadFile) -> bool:
     return is_valid
 
 async def save_staff_photo(upload_file: UploadFile) -> Optional[str]:
-    """Сохраняет фотографию сотрудника."""
+    """
+    Сохраняет фотографию сотрудника.
+    Возвращает URL-путь к фотографии для доступа через HTTP.
+    """
     if not await validate_photo_file(upload_file):
         return None
-    return await save_upload_file(upload_file, PHOTOS_DIR)
+    file_path = await save_upload_file(upload_file, PHOTOS_DIR)
+    if file_path:
+        # Преобразуем локальный путь в URL
+        # Например, uploads/photos/file.jpg -> /uploads/photos/file.jpg
+        url_path = "/" + file_path.replace("\\", "/")
+        logger.info(f"URL фотографии: {url_path}")
+        return url_path
+    return None
 
 async def save_staff_document(upload_file: UploadFile, doc_type: str) -> Optional[Dict[str, str]]:
     """
     Сохраняет документ сотрудника.
-    Возвращает словарь с типом документа и путем к нему.
+    Возвращает словарь с типом документа и URL-путем к нему.
     """
     if not await validate_document_file(upload_file):
         return None
@@ -85,7 +95,9 @@ async def save_staff_document(upload_file: UploadFile, doc_type: str) -> Optiona
     
     file_path = await save_upload_file(upload_file, doc_dir)
     if file_path:
-        return {doc_type: file_path}
+        # Преобразуем локальный путь в URL
+        url_path = "/" + file_path.replace("\\", "/")
+        return {doc_type: url_path}
     return None
 
 def delete_file(file_path: str) -> bool:

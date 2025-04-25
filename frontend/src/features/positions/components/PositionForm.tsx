@@ -22,6 +22,11 @@ const POSITION_LEVELS = [
   { value: 'ASSISTANT', label: 'Ассистент' },
 ];
 
+// Константы для проверки уровней должностей
+const LEVEL_DIRECTOR = 'DIRECTOR';
+const LEVEL_HEAD = 'HEAD';
+const LEVEL_LEAD = 'LEAD';
+
 // Тип для опций секций
 interface SectionOption {
   value: string;
@@ -58,6 +63,9 @@ const PositionForm: React.FC<PositionFormProps> = ({
   });
   
   const [functionOptions, setFunctionOptions] = useState<{ value: string; label: string }[]>([]);
+
+  const [showDivision, setShowDivision] = useState(true);
+  const [showSection, setShowSection] = useState(true);
 
   // Преобразуем департаменты в опции для селекта
   useEffect(() => {
@@ -117,7 +125,14 @@ const PositionForm: React.FC<PositionFormProps> = ({
         }
         return null;
       },
-      section_id: (value) => (!value ? 'Необходимо выбрать отдел' : null),
+      section_id: (value, values) => {
+        // Отдел обязателен только если он отображается (т.е. должность не директор и не руководитель)
+        const positionLevel = values.attribute;
+        if (positionLevel !== LEVEL_DIRECTOR && positionLevel !== LEVEL_HEAD) {
+          return !value ? 'Необходимо выбрать отдел' : null;
+        }
+        return null;
+      },
     },
   });
 
@@ -159,6 +174,40 @@ const PositionForm: React.FC<PositionFormProps> = ({
     }
   }, [form.values.division_id, sectionOptions]);
 
+  useEffect(() => {
+    // Проверяем уровень должности, чтобы определить видимость полей
+    const positionLevel = form.values.attribute;
+    
+    // Если уровень "Директор", не показываем ни департамент, ни отдел
+    if (positionLevel === LEVEL_DIRECTOR) {
+      setShowDivision(false);
+      setShowSection(false);
+      // Очищаем поля, если они заполнены
+      form.setFieldValue('division_id', '');
+      form.setFieldValue('section_id', '');
+    } 
+    // Если уровень "Руководитель", показываем только департамент, но не отдел
+    else if (positionLevel === LEVEL_HEAD) {
+      setShowDivision(true);
+      setShowSection(false);
+      // Очищаем поле отдела, если оно заполнено
+      form.setFieldValue('section_id', '');
+    } 
+    // В остальных случаях показываем оба поля
+    else {
+      setShowDivision(true);
+      setShowSection(true);
+    }
+  }, [form.values.attribute]);
+
+  // Изменяем валидацию в зависимости от видимости полей
+  useEffect(() => {
+    // Если поле отдела скрыто, убираем его обязательность
+    if (!showSection) {
+      form.clearFieldError('section_id');
+    }
+  }, [showSection]);
+
   const handleSubmit = (values: typeof form.values) => {
     // Проверка на наличие кода после префикса
     if (!initialData && values.code === POSITION_PREFIX) {
@@ -166,10 +215,31 @@ const PositionForm: React.FC<PositionFormProps> = ({
       return;
     }
     
+    // В зависимости от уровня должности, определяем, какие поля отправлять
+    const positionLevel = values.attribute;
+    let divisionId = null;
+    let sectionId = undefined; // По умолчанию undefined для корректной типизации
+    
+    // Для директора не отправляем ни департамент, ни отдел
+    if (positionLevel === LEVEL_DIRECTOR) {
+      divisionId = null;
+      sectionId = undefined;
+    }
+    // Для руководителя отправляем только департамент
+    else if (positionLevel === LEVEL_HEAD) {
+      divisionId = values.division_id ? Number(values.division_id) : null;
+      sectionId = undefined;
+    }
+    // Для остальных отправляем и департамент, и отдел
+    else {
+      divisionId = values.division_id ? Number(values.division_id) : null;
+      sectionId = values.section_id ? Number(values.section_id) : undefined;
+    }
+    
     const formData = {
       ...values,
-      division_id: values.division_id ? Number(values.division_id) : null,
-      section_id: values.section_id ? Number(values.section_id) : undefined,
+      division_id: divisionId,
+      section_id: sectionId,
       function_ids: values.function_ids?.map(id => Number(id)) || [],
       description: values.description || null,
       attribute: values.attribute || null,
@@ -203,22 +273,34 @@ const PositionForm: React.FC<PositionFormProps> = ({
           />
 
           <Select
-            label="Департамент"
-            placeholder="Выберите департамент"
-            data={divisionOptions}
-            searchable
+            label="Уровень должности"
+            placeholder="Выберите уровень должности"
+            data={POSITION_LEVELS}
             clearable
-            {...form.getInputProps('division_id')}
+            {...form.getInputProps('attribute')}
           />
+
+          {showDivision && (
+            <Select
+              label="Департамент"
+              placeholder="Выберите департамент"
+              data={divisionOptions}
+              searchable
+              clearable
+              {...form.getInputProps('division_id')}
+            />
+          )}
           
-          <Select
-            label="Отдел"
-            placeholder="Выберите отдел"
-            data={filteredSectionOptions}
-            withAsterisk
-            searchable
-            {...form.getInputProps('section_id')}
-          />
+          {showSection && (
+            <Select
+              label="Отдел"
+              placeholder="Выберите отдел"
+              data={filteredSectionOptions}
+              withAsterisk={showSection}
+              searchable
+              {...form.getInputProps('section_id')}
+            />
+          )}
 
           <MultiSelect
             label="Функции"
@@ -228,14 +310,6 @@ const PositionForm: React.FC<PositionFormProps> = ({
             clearable
             nothingFoundMessage="Функции не найдены"
             {...form.getInputProps('function_ids')}
-          />
-          
-          <Select
-            label="Уровень должности"
-            placeholder="Выберите уровень должности"
-            data={POSITION_LEVELS}
-            clearable
-            {...form.getInputProps('attribute')}
           />
           
           <Textarea

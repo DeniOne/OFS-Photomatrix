@@ -25,16 +25,19 @@ async def create_staff(
     
     Если `create_user`=True, также создается связанный пользователь
     и возвращается объект сотрудника вместе с кодом активации.
+    
+    Если указан `position_id`, создается запись в StaffPosition, связывающая сотрудника с должностью.
     """
     logger.info(f"Попытка создания сотрудника: {staff_in.email}")
     
     # Шаг 1: Подготовка данных для создания модели Staff 
-    # Исключаем поле create_user, которого нет в модели Staff
+    # Исключаем поля, которых нет в модели Staff
     try:
         obj_in_data = {}
-        # Копируем все поля из staff_in, кроме create_user
+        # Копируем все поля из staff_in, кроме тех, которые не входят в модель Staff
+        excluded_fields = ["create_user", "position_id", "organization_id", "location_id", "is_primary_position"]
         for field, value in staff_in.dict(exclude_none=True).items():
-            if field != "create_user":
+            if field not in excluded_fields:
                 # Если поле - hire_date, преобразуем его из строки в объект date
                 if field == "hire_date" and value and isinstance(value, str):
                     try:
@@ -67,6 +70,18 @@ async def create_staff(
     response_data = {"activation_code": None}
     
     try:
+        # Проверяем, указана ли должность и организация
+        has_position_data = staff_in.position_id is not None
+        if has_position_data:
+            # Проверяем существование должности
+            position = await crud.position.get(db=db, id=staff_in.position_id)
+            if not position:
+                logger.error(f"Должность с ID {staff_in.position_id} не найдена")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Position with ID {staff_in.position_id} not found"
+                )
+        
         if staff_in.create_user:
             # Проверяем, есть ли email для создания пользователя
             if not staff_in.email:
@@ -106,7 +121,17 @@ async def create_staff(
                 staff.user_id = new_user.id
                 db.add(staff)
                 
-                # Шаг 6: Коммитим транзакцию
+                # Шаг 6: Если указана должность, создаем связь с должностью
+                if has_position_data:
+                    staff_position = models.StaffPosition(
+                        staff_id=staff.id,
+                        position_id=staff_in.position_id,
+                        is_primary=staff_in.is_primary_position,
+                        start_date=staff.hire_date
+                    )
+                    db.add(staff_position)
+                
+                # Шаг 7: Коммитим транзакцию
                 await db.commit()
                 await db.refresh(staff)
                 await db.refresh(new_user)
@@ -125,11 +150,24 @@ async def create_staff(
             # Создаем только сотрудника
             staff = models.Staff(**obj_in_data)
             db.add(staff)
+            await db.flush()
+            await db.refresh(staff)
+            
+            # Если указана должность, создаем связь с должностью
+            if has_position_data:
+                staff_position = models.StaffPosition(
+                    staff_id=staff.id,
+                    position_id=staff_in.position_id,
+                    is_primary=staff_in.is_primary_position,
+                    start_date=staff.hire_date
+                )
+                db.add(staff_position)
+            
             await db.commit()
             await db.refresh(staff)
             logger.info(f"Создан сотрудник с ID {staff.id} (без пользователя)")
             
-        # Шаг 7: Формируем ответ
+        # Шаг 8: Формируем ответ
         staff_dict = {column.name: getattr(staff, column.name) 
                      for column in staff.__table__.columns}
         response_data.update(staff_dict)
@@ -148,69 +186,119 @@ async def create_staff(
             detail=f"Failed to create staff member: {str(e)}"
         )
 
-@router.post("/upload-photo/{staff_id}", response_model=schemas.Staff)
+@router.post("/{staff_id}/photo", response_model=schemas.Staff)
 async def upload_staff_photo(
     *,
+    db: AsyncSession = Depends(deps.get_db),
     staff_id: int,
     photo: UploadFile = File(...),
-    db: AsyncSession = Depends(deps.get_db),
-    # current_user: models.User = Depends(deps.get_current_active_user) # TODO: Добавить проверку прав
-) -> models.Staff:
-    """Загрузка фотографии сотрудника"""
+    # current_user: models.User = Depends(deps.get_current_active_user)
+):
+    """Загрузить фотографию сотрудника."""
+    logger.info(f"Загрузка фото для сотрудника {staff_id}")
+    
+    # Проверяем существование сотрудника
     staff = await crud.staff.get(db=db, id=staff_id)
     if not staff:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff not found"
+        )
     
-    # Сохраняем фото
+    # Сохраняем фото и получаем путь
     photo_path = await save_staff_photo(photo)
     if not photo_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid photo file"
+            detail="Failed to save photo. Invalid file format."
         )
     
-    # Удаляем старое фото, если есть
-    if staff.photo_path:
-        # Можно добавить функцию удаления старого файла
-        pass
-    
-    # Обновляем путь к фото в БД
-    update_data = {"photo_path": photo_path}
-    updated_staff = await crud.staff.update(db=db, db_obj=staff, obj_in=update_data)
+    # Обновляем путь к фото у сотрудника
+    updated_staff = await crud.staff.update(
+        db=db,
+        db_obj=staff,
+        obj_in={"photo_path": photo_path}
+    )
     
     return updated_staff
 
-@router.post("/upload-document/{staff_id}", response_model=schemas.Staff)
+@router.post("/{staff_id}/document", response_model=schemas.Staff)
 async def upload_staff_document(
     *,
+    db: AsyncSession = Depends(deps.get_db),
     staff_id: int,
     document: UploadFile = File(...),
-    document_type: str = Form(...),
-    db: AsyncSession = Depends(deps.get_db),
-    # current_user: models.User = Depends(deps.get_current_active_user) # TODO: Добавить проверку прав
-) -> models.Staff:
-    """Загрузка документа сотрудника.
+    doc_type: str = Form(...),
+    # current_user: models.User = Depends(deps.get_current_active_user)
+):
+    """Загрузить документ сотрудника (паспорт, договор и т.д.)."""
+    logger.info(f"Загрузка документа типа '{doc_type}' для сотрудника {staff_id}")
     
-    document_type - тип документа (например, "passport", "contract", "resume")
-    """
+    # Проверяем существование сотрудника
     staff = await crud.staff.get(db=db, id=staff_id)
     if not staff:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff not found"
+        )
     
-    # Сохраняем документ
-    doc_info = await save_staff_document(document, document_type)
+    # Сохраняем документ и получаем словарь с путем
+    doc_info = await save_staff_document(document, doc_type)
     if not doc_info:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid document file"
+            detail="Failed to save document. Invalid file format."
         )
     
-    # Обновляем документы в БД
+    # Объединяем новый документ с существующими
     current_docs = staff.document_paths or {}
     current_docs.update(doc_info)
     
-    update_data = {"document_paths": current_docs}
-    updated_staff = await crud.staff.update(db=db, db_obj=staff, obj_in=update_data)
+    # Обновляем пути к документам у сотрудника
+    updated_staff = await crud.staff.update(
+        db=db,
+        db_obj=staff,
+        obj_in={"document_paths": current_docs}
+    )
+    
+    return updated_staff
+
+@router.delete("/{staff_id}/document/{doc_type}", response_model=schemas.Staff)
+async def delete_staff_document(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    staff_id: int,
+    doc_type: str,
+    # current_user: models.User = Depends(deps.get_current_active_user)
+):
+    """Удалить документ сотрудника определенного типа."""
+    logger.info(f"Удаление документа типа '{doc_type}' для сотрудника {staff_id}")
+    
+    # Проверяем существование сотрудника
+    staff = await crud.staff.get(db=db, id=staff_id)
+    if not staff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff not found"
+        )
+    
+    # Проверяем наличие документа данного типа
+    if not staff.document_paths or doc_type not in staff.document_paths:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document of type '{doc_type}' not found for this staff member"
+        )
+    
+    # Удаляем документ из списка
+    current_docs = dict(staff.document_paths)
+    del current_docs[doc_type]
+    
+    # Обновляем пути к документам у сотрудника
+    updated_staff = await crud.staff.update(
+        db=db,
+        db_obj=staff,
+        obj_in={"document_paths": current_docs}
+    )
     
     return updated_staff
 
@@ -247,12 +335,72 @@ async def update_staff(
     # current_user: models.User = Depends(deps.get_current_active_superuser) # TODO: Добавить проверку прав
 ) -> models.Staff:
     """Обновление информации о сотруднике"""
+    logger.info(f"Обновление сотрудника с ID {staff_id}: {staff_in}")
+    
     staff = await crud.staff.get(db=db, id=staff_id)
     if not staff:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
     
-    # TODO: Добавить логику, если при обновлении меняется email и нужно обновить связанного пользователя?
+    # Обработка создания пользователя при обновлении, если такой флаг установлен
+    if staff_in.create_user and not staff.user_id:
+        logger.info(f"Запрос на создание пользователя для сотрудника {staff_id}")
+        # Проверяем, есть ли email для создания пользователя
+        staff_email = staff_in.email or staff.email
+        if not staff_email:
+            logger.error("Email не указан при запросе создания пользователя")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Email is required to create a user for the staff member."
+            )
+        
+        # Проверяем, существует ли уже пользователь с таким email
+        existing_user = await crud.user.get_by_email(db=db, email=staff_email)
+        if existing_user:
+            logger.warning(f"Пользователь с email {staff_email} уже существует")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"User with email {staff_email} already exists."
+            )
+            
+        try:
+            # Создаем пользователя
+            user_in = schemas.UserCreate(
+                email=staff_email, 
+                full_name=f"{staff.last_name} {staff.first_name} {staff.middle_name if staff.middle_name else ''}", 
+                password=None
+            )
+            
+            # Создаем пользователя
+            new_user = await crud.user.create(db=db, obj_in=user_in, commit=False)
+            
+            # Связываем сотрудника с пользователем
+            staff_in_dict = staff_in.dict(exclude_none=True)
+            staff_in_dict["user_id"] = new_user.id
+            
+            # Обновляем словарь для обновления сотрудника
+            staff_in = schemas.StaffUpdate(**staff_in_dict)
+            
+            # Коммитим транзакцию
+            await db.commit()
+            await db.refresh(new_user)
+            
+            logger.info(f"Пользователь создан и связан с сотрудником. ID пользователя: {new_user.id}")
+            
+            # Возвращаем код активации в ответе
+            # Т.к. в схеме Staff нет поля activation_code, нужно его передать другим способом
+            # Можно использовать заголовки ответа, но проще всего отобразить его в UI через notifications
+            activation_code = new_user.activation_code
+            logger.info(f"Код активации: {activation_code}")
+            
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Ошибка при создании пользователя: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create user: {str(e)}"
+            )
     
+    # Обновляем сотрудника
     updated_staff = await crud.staff.update(db=db, db_obj=staff, obj_in=staff_in)
     return updated_staff
 

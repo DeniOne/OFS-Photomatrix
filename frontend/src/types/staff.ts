@@ -43,6 +43,10 @@ export interface StaffCreate {
   document_paths?: Record<string, string>;
   is_active?: boolean;
   create_user?: boolean; // Флаг для создания связанного пользователя
+  position_id?: number;  // ID должности
+  organization_id?: number;  // ID организации (юрлица)
+  location_id?: number;  // ID локации
+  is_primary_position?: boolean;  // Является ли должность основной
 }
 
 export interface StaffCreateResponse extends Staff {
@@ -60,6 +64,11 @@ export interface StaffUpdate {
   photo_path?: string;
   document_paths?: Record<string, string>;
   is_active?: boolean;
+  create_user?: boolean;
+  position_id?: number;  // ID должности
+  organization_id?: number;  // ID организации (юрлица)
+  location_id?: number;  // ID локации
+  is_primary_position?: boolean;  // Является ли должность основной
 }
 
 export interface StaffWithPositions extends Staff {

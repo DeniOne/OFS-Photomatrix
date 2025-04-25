@@ -20,7 +20,7 @@ export interface Position {
 export interface PositionCreate {
   name: string;
   code: string;
-  section_id: number;
+  section_id?: number;
   division_id?: number | null;
   attribute?: string | null;
   description?: string | null;

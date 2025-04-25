@@ -3,8 +3,12 @@ import { api } from '../../../api/client';
 import { Staff, StaffCreate, StaffUpdate } from '../../../types/staff';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
+import { Position } from '../../../types/position';
+import { Organization } from '../../../types/organization';
 
 const API_URL_STAFF = '/api/v1/staff/';
+const API_URL_POSITIONS = '/api/v1/positions/';
+const API_URL_ORGANIZATIONS = '/api/v1/organizations/';
 
 // --- Функции для вызова API ---
 
@@ -52,6 +56,67 @@ const updateStaff = async ({ id, data }: { id: number; data: StaffUpdate }): Pro
 // Удаление сотрудника
 const deleteStaff = async (id: number): Promise<void> => {
   await api.delete(`${API_URL_STAFF}${id}`);
+};
+
+// Загрузка фотографии сотрудника
+const uploadStaffPhoto = async ({ staffId, photo }: { staffId: number; photo: File }): Promise<Staff> => {
+  const formData = new FormData();
+  formData.append('photo', photo);
+  
+  const response = await api.post<Staff>(
+    `${API_URL_STAFF}${staffId}/photo`, 
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// Загрузка документа сотрудника
+const uploadStaffDocument = async ({ 
+  staffId, 
+  document, 
+  docType 
+}: { 
+  staffId: number; 
+  document: File; 
+  docType: string 
+}): Promise<Staff> => {
+  const formData = new FormData();
+  formData.append('document', document);
+  formData.append('doc_type', docType);
+  
+  const response = await api.post<Staff>(
+    `${API_URL_STAFF}${staffId}/document`, 
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// Удаление документа сотрудника
+const deleteStaffDocument = async ({ staffId, docType }: { staffId: number; docType: string }): Promise<Staff> => {
+  const response = await api.delete<Staff>(`${API_URL_STAFF}${staffId}/document/${docType}`);
+  return response.data;
+};
+
+// Получение списка должностей
+const fetchPositions = async (): Promise<Position[]> => {
+  const response = await api.get<Position[]>(API_URL_POSITIONS);
+  return response.data;
+};
+
+// Получение списка организаций
+const fetchOrganizations = async (): Promise<Organization[]> => {
+  const response = await api.get<Organization[]>(API_URL_ORGANIZATIONS);
+  return response.data;
 };
 
 // --- Хуки React Query ---
@@ -149,5 +214,108 @@ export const useDeleteStaff = () => {
         icon: <IconX />,
       });
     },
+  });
+};
+
+// Хук для загрузки фотографии сотрудника
+export const useUploadStaffPhoto = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<Staff, Error, { staffId: number; photo: File }>({
+    mutationFn: uploadStaffPhoto,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff', data.id] });
+
+      // Добавляем небольшую задержку и обновляем страницу
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+
+      notifications.show({
+        title: 'Успешно',
+        message: 'Фотография сотрудника успешно загружена',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось загрузить фотографию: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+
+// Хук для загрузки документа сотрудника
+export const useUploadStaffDocument = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<Staff, Error, { staffId: number; document: File; docType: string }>({
+    mutationFn: uploadStaffDocument,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff', data.id] });
+      notifications.show({
+        title: 'Успешно',
+        message: 'Документ сотрудника успешно загружен',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось загрузить документ: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+
+// Хук для удаления документа сотрудника
+export const useDeleteStaffDocument = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<Staff, Error, { staffId: number; docType: string }>({
+    mutationFn: deleteStaffDocument,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff', data.id] });
+      notifications.show({
+        title: 'Успешно',
+        message: 'Документ сотрудника успешно удален',
+        color: 'green',
+        icon: <IconCheck />,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: 'Ошибка',
+        message: `Не удалось удалить документ: ${error.message}`,
+        color: 'red',
+        icon: <IconX />,
+      });
+    },
+  });
+};
+
+// Хук для получения списка должностей
+export const usePositionsList = () => {
+  return useQuery<Position[], Error>({
+    queryKey: ['positions', 'list'],
+    queryFn: () => fetchPositions(),
+  });
+};
+
+// Хук для получения списка организаций
+export const useOrganizationsList = () => {
+  return useQuery<Organization[], Error>({
+    queryKey: ['organizations', 'list'],
+    queryFn: () => fetchOrganizations(),
   });
 }; 

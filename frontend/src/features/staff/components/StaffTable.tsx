@@ -1,9 +1,10 @@
 import React from 'react';
 import { Table, ActionIcon, Badge, Group, TextInput, Select, Box, Loader, Text, Stack, Tooltip } from '@mantine/core';
-import { IconEdit, IconTrash, IconSearch, IconUserPlus, IconRocket } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconSearch, IconUserPlus, IconRocket, IconEye } from '@tabler/icons-react';
 import { Staff } from '../../../types/staff';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 interface StaffTableProps {
   data: Staff[];
@@ -26,6 +27,8 @@ export const StaffTable: React.FC<StaffTableProps> = ({
   onCreateUser,
   onRocketChatIntegration,
 }) => {
+  const navigate = useNavigate();
+
   if (loading) {
     return (
       <Box pt="xl" style={{ display: 'flex', justifyContent: 'center' }}>
@@ -69,8 +72,17 @@ export const StaffTable: React.FC<StaffTableProps> = ({
     return `${staff.last_name} ${staff.first_name}${middle}`;
   };
 
+  // Переход к детальной странице сотрудника
+  const handleRowClick = (staff: Staff) => {
+    navigate(`/staff/${staff.id}`);
+  };
+
   const rows = data.map((staff) => (
-    <Table.Tr key={staff.id}>
+    <Table.Tr 
+      key={staff.id} 
+      style={{ cursor: 'pointer' }}
+      onClick={() => handleRowClick(staff)}
+    >
       <Table.Td>{getFullName(staff)}</Table.Td>
       <Table.Td>{staff.email || '-'}</Table.Td>
       <Table.Td>{staff.phone || '-'}</Table.Td>
@@ -85,8 +97,14 @@ export const StaffTable: React.FC<StaffTableProps> = ({
           {staff.user_id ? 'Есть' : 'Нет'}
         </Badge>
       </Table.Td>
-      <Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
         <Group gap="xs">
+          <Tooltip label="Просмотреть">
+            <ActionIcon variant="subtle" color="teal" onClick={() => handleRowClick(staff)}>
+              <IconEye size={16} />
+            </ActionIcon>
+          </Tooltip>
+          
           <ActionIcon variant="subtle" color="blue" onClick={() => onEdit(staff)}>
             <IconEdit size={16} />
           </ActionIcon>

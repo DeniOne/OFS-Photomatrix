@@ -27,11 +27,21 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         result = await db.execute(query)
         return result.scalars().first()
     
-    async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
+    async def create(self, db: AsyncSession, *, obj_in: UserCreate, commit: bool = True) -> User:
         """Создать нового пользователя.
         Если пароль не предоставлен, генерируется код активации.
+        
+        Args:
+            db: Сессия БД
+            obj_in: Данные для создания пользователя
+            commit: Флаг, указывающий, нужно ли коммитить транзакцию (True по умолчанию)
         """
-        create_data = obj_in.model_dump() # Используем model_dump для Pydantic v2
+        try:
+            create_data = obj_in.model_dump() # Используем model_dump для Pydantic v2
+        except AttributeError:
+            # Фоллбэк для Pydantic v1
+            create_data = obj_in.dict()
+        
         hashed_password = None
         activation_code = None
 
@@ -56,8 +66,11 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         )
         
         db.add(db_obj)
-        await db.commit()
-        await db.refresh(db_obj)
+        
+        if commit:
+            await db.commit()
+            await db.refresh(db_obj)
+        
         return db_obj
     
     async def update(

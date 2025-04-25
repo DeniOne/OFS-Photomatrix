@@ -18,6 +18,10 @@ class StaffBase(BaseModel):
 class StaffCreate(StaffBase):
     """Схема для создания сотрудника"""
     create_user: bool = False # Флаг для создания связанного пользователя
+    position_id: Optional[int] = None  # ID должности
+    organization_id: Optional[int] = None  # ID организации (юрлица)
+    location_id: Optional[int] = None  # ID локации
+    is_primary_position: bool = True  # Является ли должность основной
     
 class StaffUpdate(BaseModel):
     """Схема для обновления сотрудника"""
@@ -31,6 +35,11 @@ class StaffUpdate(BaseModel):
     photo_path: Optional[str] = None
     document_paths: Optional[Dict[str, str]] = None
     is_active: Optional[bool] = None
+    create_user: Optional[bool] = None  # Флаг для создания связанного пользователя при обновлении
+    position_id: Optional[int] = None  # ID должности
+    organization_id: Optional[int] = None  # ID организации (юрлица)
+    location_id: Optional[int] = None  # ID локации
+    is_primary_position: Optional[bool] = None  # Является ли должность основной
     
 class StaffInDBBase(StaffBase):
     """Базовая схема для сотрудника в БД"""

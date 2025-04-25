@@ -52,29 +52,33 @@ async def create_position(
     """
     Создать новую должность
     """
-    # Проверяем существование отдела
-    section = await crud.section.get(db, id=position_in.section_id)
-    if not section:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Отдел не найден",
-        )
+    # Проверяем необходимость проверки отдела
+    position_data = position_in.dict(exclude={"function_ids"})
+    
+    # Если указан section_id, проверяем существование отдела
+    if position_in.section_id is not None:
+        # Проверяем существование отдела
+        section = await crud.section.get(db, id=position_in.section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Отдел не найден",
+            )
         
-    # Проверяем уникальность кода в рамках отдела
-    existing_position = await crud.position.get_by_code_and_section(
-        db, code=position_in.code, section_id=position_in.section_id
-    )
-    if existing_position:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Должность с таким кодом уже существует в данном отделе",
+        # Проверяем уникальность кода в рамках отдела
+        existing_position = await crud.position.get_by_code_and_section(
+            db, code=position_in.code, section_id=position_in.section_id
         )
+        if existing_position:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Должность с таким кодом уже существует в данном отделе",
+            )
     
     # Сохраняем ID функций перед созданием должности
     function_ids = position_in.function_ids
     
     # Создаем должность без function_ids (будут обрабатываться отдельно)
-    position_data = position_in.dict(exclude={"function_ids"})
     position = await crud.position.create(db, obj_in=position_data)
     
     # Создаем функциональные назначения для новой должности
@@ -148,30 +152,33 @@ async def update_position(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Должность не найдена",
         )
-        
-    # Если меняется отдел или код, проверяем уникальность кода в рамках отдела
-    if (position_in.code and position_in.code != position.code) or \
-       (position_in.section_id and position_in.section_id != position.section_id):
-        section_id = position_in.section_id or position.section_id
-        code = position_in.code or position.code
-        existing_position = await crud.position.get_by_code_and_section(
-            db, code=code, section_id=section_id
-        )
-        if existing_position and existing_position.id != id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Должность с таким кодом уже существует в данном отделе",
-            )
-            
-    # Если меняется отдел, проверяем его существование
-    if position_in.section_id and position_in.section_id != position.section_id:
+    
+    position_data = position_in.dict(exclude={"function_ids"}, exclude_unset=True)
+    
+    # Если изменяется section_id и он не None, проверяем его существование
+    if position_in.section_id is not None and position_in.section_id != position.section_id:
+        # Проверяем существование отдела
         section = await crud.section.get(db, id=position_in.section_id)
         if not section:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Отдел не найден",
             )
-    
+            
+        # Если меняется отдел или код, проверяем уникальность кода в рамках отдела
+        if (position_in.code and position_in.code != position.code) or \
+           (position_in.section_id and position_in.section_id != position.section_id):
+            section_id = position_in.section_id or position.section_id
+            code = position_in.code or position.code
+            existing_position = await crud.position.get_by_code_and_section(
+                db, code=code, section_id=section_id
+            )
+            if existing_position and existing_position.id != id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Должность с таким кодом уже существует в данном отделе",
+                )
+        
     # Сохраняем ID функций перед обновлением должности
     function_ids = position_in.function_ids
     
@@ -216,7 +223,6 @@ async def update_position(
         await db.commit()
     
     # Обновляем должность без function_ids
-    position_data = position_in.dict(exclude={"function_ids"}, exclude_unset=True)
     position = await crud.position.update(db, db_obj=position, obj_in=position_data)
     
     # Получаем обновленный список функций для ответа

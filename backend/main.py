@@ -3,6 +3,7 @@ import logging
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles  # Импорт для статических файлов
 import time
 import os
 from app.core.logging import setup_logging, api_logger
@@ -74,6 +75,14 @@ app.add_middleware(
 
 # Подключение API роутеров
 app.include_router(api_router, prefix="/api/v1")
+
+# Настройка статических файлов
+uploads_dir = os.path.join(os.getcwd(), "uploads")
+if os.path.exists(uploads_dir):
+    logger.info(f"Монтирование директории статических файлов: {uploads_dir}")
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+else:
+    logger.warning(f"Директория для загрузок не найдена: {uploads_dir}")
 
 @app.get("/")
 async def root():

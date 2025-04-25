@@ -23,6 +23,7 @@ const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const FunctionsPage = lazy(() => import('./features/functions/pages/FunctionsPage.tsx'));
 const PositionsPage = lazy(() => import('./features/positions/pages/PositionsPage'));
 const StaffPage = lazy(() => import('./features/staff/pages/StaffPage'));
+const StaffDetailPage = lazy(() => import('./features/staff/pages/StaffDetailPage'));
 const TestPage = lazy(() => import('./pages/TestPage'));
 // Убираем тестовую страницу
 // const TestModalPage = lazy(() => import('./pages/TestModalPage')); 
@@ -195,6 +196,14 @@ function App() {
                   path="/staff"
                   element={isAuthenticated ? 
                     <WrappedRoute element={<StaffPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route 
+                  path="/staff/:id"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<StaffDetailPage />} /> : 
                     <Navigate to="/login" replace />
                   }
                 />
