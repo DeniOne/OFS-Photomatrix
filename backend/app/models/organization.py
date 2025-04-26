@@ -7,6 +7,8 @@ from app.db.base import Base, BaseModel
 class Organization(Base, BaseModel):
     """Модель организации"""
     
+    __tablename__ = "organization"  # Явно указываем имя таблицы
+    
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     code = Column(String(50), unique=True, nullable=False)
@@ -19,6 +21,4 @@ class Organization(Base, BaseModel):
     
     # Отношения
     parent = relationship("Organization", remote_side=[id], backref="children")
-    divisions = relationship("Division", back_populates="organization")
-    
-    __tablename__ = "organization"  # Явно указываем имя таблицы 
+    divisions = relationship("Division", back_populates="organization", uselist=True) 

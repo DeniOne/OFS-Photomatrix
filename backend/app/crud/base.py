@@ -26,9 +26,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         Получить объект по ID
         """
-        query = select(self.model).filter(self.model.id == id)
-        result = await db.execute(query)
-        return result.scalars().first()
+        try:
+            query = select(self.model).filter(self.model.id == id)
+            result = await db.execute(query)
+            obj = result.scalars().first()
+            # Если объект найден, добавляем его в текущую сессию, чтобы он не стал отсоединенным
+            if obj is not None:
+                db.add(obj)
+            return obj
+        except Exception as e:
+            print(f"Error in get method: {str(e)}")
+            return None
     
     async def get_multi(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
@@ -36,9 +44,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         Получить несколько объектов с пагинацией
         """
-        query = select(self.model).offset(skip).limit(limit)
-        result = await db.execute(query)
-        return result.scalars().all()
+        try:
+            query = select(self.model).offset(skip).limit(limit)
+            result = await db.execute(query)
+            objs = result.scalars().all()
+            # Убедимся, что все объекты привязаны к текущей сессии
+            for obj in objs:
+                db.add(obj)
+            return objs
+        except Exception as e:
+            print(f"Error in get_multi method: {str(e)}")
+            return []
     
     async def create(self, db: AsyncSession, *, obj_in: CreateSchemaType) -> ModelType:
         """

@@ -49,8 +49,24 @@ const createStaff = async (data: StaffCreate): Promise<Staff> => {
 
 // Обновление сотрудника
 const updateStaff = async ({ id, data }: { id: number; data: StaffUpdate }): Promise<Staff> => {
-  const response = await api.put<Staff>(`${API_URL_STAFF}${id}`, data);
-  return response.data;
+  console.log(`Отправка запроса на обновление сотрудника с ID ${id}:`, data);
+  
+  // Убедимся, что ID преобразованы в числа
+  const preparedData = {
+    ...data,
+    position_id: data.position_id ? Number(data.position_id) : undefined,
+    organization_id: data.organization_id ? Number(data.organization_id) : undefined,
+    location_id: data.location_id ? Number(data.location_id) : undefined
+  };
+  
+  try {
+    const response = await api.put<Staff>(`${API_URL_STAFF}${id}`, preparedData);
+    console.log(`Успешно обновлен сотрудник с ID ${id}:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`Ошибка при обновлении сотрудника с ID ${id}:`, error);
+    throw error;
+  }
 };
 
 // Удаление сотрудника
@@ -144,7 +160,7 @@ export const useCreateStaff = () => {
   
   return useMutation<Staff, Error, StaffCreate>({
     mutationFn: createStaff,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff'] });
       notifications.show({
         title: 'Успешно',

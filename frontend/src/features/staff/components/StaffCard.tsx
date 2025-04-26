@@ -157,6 +157,20 @@ const StaffCard: React.FC<StaffCardProps> = ({
               <Text>{formatDate(staff.hire_date)}</Text>
             </Group>
             <Group>
+              <Text fw={700}>Должность:</Text>
+              <Text>
+                {staff.positions && staff.positions.length > 0 && staff.positions[0].position_name 
+                  ? staff.positions[0].position_name 
+                  : 'Не указана'}
+              </Text>
+            </Group>
+            <Group>
+              <Text fw={700}>Организация:</Text>
+              <Text>
+                {staff?.organization_name || 'Не указана'}
+              </Text>
+            </Group>
+            <Group>
               <Text fw={700}>Учетная запись:</Text>
               <Text>
                 {staff.user_id 

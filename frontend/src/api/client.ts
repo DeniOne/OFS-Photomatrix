@@ -38,7 +38,7 @@ api.interceptors.request.use(
 // Интерсептор для обработки ответов и ошибок
 api.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log(`API ответ [${response.status}] ${response.config.url}`);
+    console.log(`API ответ [${response.status}] ${response.config.url}`, response.data);
     return response;
   },
   (error: AxiosError) => {
@@ -56,7 +56,7 @@ api.interceptors.response.use(
         }
       }
     } else {
-      console.error('API ошибка без ответа сервера:', error.message);
+      console.error('API ошибка без ответа сервера:', error.message, error);
     }
     
     handleApiError(error);

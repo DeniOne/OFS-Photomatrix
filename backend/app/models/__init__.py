@@ -5,6 +5,7 @@ from app.models.section import Section
 from app.models.position import Position
 from app.models.staff import Staff
 from app.models.staff_position import StaffPosition
+from app.models.staff_organization import StaffOrganization
 from app.models.function import Function
 from app.models.functional_assignment import FunctionalAssignment
 from app.models.functional_relation import FunctionalRelation
@@ -18,6 +19,7 @@ __all__ = [
     "Position",
     "Staff",
     "StaffPosition",
+    "StaffOrganization",
     "Function",
     "FunctionalAssignment",
     "FunctionalRelation",

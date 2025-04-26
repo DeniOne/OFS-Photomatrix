@@ -17,6 +17,7 @@ export interface Staff {
   updated_at: string;
   user?: User;
   staff_positions?: StaffPosition[];
+  organization_name?: string | null; // Название организации
 }
 
 export interface StaffPosition {

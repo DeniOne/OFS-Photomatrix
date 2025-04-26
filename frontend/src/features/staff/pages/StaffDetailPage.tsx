@@ -56,11 +56,26 @@ const StaffDetailPage: React.FC = () => {
   };
   
   const handleUpdate = (data: any) => {
+    console.log("Отправка данных для обновления сотрудника:", data);
     updateMutation.mutate(
       { id: staffId, data },
       {
         onSuccess: () => {
+          console.log("Сотрудник успешно обновлен");
+          // Принудительно закрываем модальное окно
           handleCloseEditModal();
+          // Принудительно обновляем страницу после небольшой задержки
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+        },
+        onError: (error) => {
+          console.error("Ошибка при обновлении сотрудника:", error);
+          notifications.show({
+            title: 'Ошибка',
+            message: `Не удалось обновить данные сотрудника: ${error.message}`,
+            color: 'red',
+          });
         }
       }
     );

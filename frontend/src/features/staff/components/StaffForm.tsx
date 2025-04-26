@@ -92,13 +92,17 @@ const StaffForm: React.FC<StaffFormProps> = ({
   
   // ID полей с зависимостями
   const [positionId, setPositionId] = useState<string | null>(
-    initialData?.staff_positions?.[0]?.position_id 
-      ? String(initialData.staff_positions[0].position_id) 
+    initialData?.positions?.[0]?.position_id 
+      ? String(initialData.positions[0].position_id) 
       : null
   );
   
   const [organizationId, setOrganizationId] = useState<string | null>(
-    defaultHolding?.id ? String(defaultHolding.id) : null
+    initialData?.organization_id 
+      ? String(initialData.organization_id) 
+      : defaultHolding?.id 
+      ? String(defaultHolding.id) 
+      : null
   );
   
   const [locationId, setLocationId] = useState<string | null>(
@@ -106,6 +110,9 @@ const StaffForm: React.FC<StaffFormProps> = ({
       ? String(initialData.staff_positions[0].position.section_id) 
       : null
   );
+  const [password, setPassword] = useState<string>(''); // Состояние для пароля
+  const [confirmPassword, setConfirmPassword] = useState<string>(''); // Состояние для подтверждения пароля
+  const [passwordError, setPasswordError] = useState<string | null>(null); // Ошибка пароля
 
   // Эффект для обновления уровня должности при выборе должности
   useEffect(() => {
@@ -135,44 +142,75 @@ const StaffForm: React.FC<StaffFormProps> = ({
   // Обработчик изменения флага создания пользователя
   const handleCreateUserChange = (checked: boolean) => {
     setCreateUser(checked);
+    // Сбрасываем ошибки пароля при изменении флага
+    setPasswordError(null);
+    if (!checked) {
+        setPassword('');
+        setConfirmPassword('');
+    }
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     
+    // Сброс ошибок перед валидацией
+    setFirstNameError(null);
+    setLastNameError(null);
+    setEmailError(null);
+    setPositionIdError(null);
+    setOrganizationIdError(null);
+    setPasswordError(null);
+    let isValid = true;
+    
     // Валидация формы
     if (!firstName.trim() || firstName.trim().length < 2) {
       setFirstNameError('Имя должно содержать минимум 2 символа');
-      return;
+      isValid = false;
     }
     
     if (!lastName.trim() || lastName.trim().length < 2) {
       setLastNameError('Фамилия должна содержать минимум 2 символа');
-      return;
+      isValid = false;
     }
     
     if (createUser && !email) {
       setEmailError('Email обязателен для создания пользователя');
-      return;
+      isValid = false;
     }
     
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError('Некорректный email');
-      return;
+      isValid = false;
+    }
+
+    // Валидация пароля, если создается пользователь
+    if (createUser) {
+        if (!password || password.length < 6) {
+            setPasswordError('Пароль должен быть не менее 6 символов');
+            isValid = false;
+        } else if (password !== confirmPassword) {
+            setPasswordError('Пароли не совпадают');
+            isValid = false;
+        }
     }
     
     if (!positionId) {
       setPositionIdError('Необходимо выбрать должность');
-      return;
+      isValid = false;
     }
     
-    if (!organizationId) {
-      setOrganizationIdError('Необходимо выбрать организацию');
-      return;
+    // Временно уберем проверку organizationId, т.к. берем его из Holding по умолчанию
+    // if (!organizationId) {
+    //   setOrganizationIdError('Необходимо выбрать организацию');
+    //   isValid = false;
+    // }
+
+    if (!isValid) {
+        return; // Прерываем отправку, если есть ошибки
     }
     
     // Преобразуем форму в формат для отправки
-    const formData: StaffCreate | StaffUpdate = {
+    const baseData = {
       first_name: firstName,
       last_name: lastName,
       middle_name: middleName || undefined,
@@ -181,20 +219,46 @@ const StaffForm: React.FC<StaffFormProps> = ({
       hire_date: hireDate 
         ? `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}-${String(hireDate.getDate()).padStart(2, '0')}` // Формат YYYY-MM-DD
         : undefined,
+      organization_id: organizationId ? Number(organizationId) : undefined, // ID организации
       is_active: isActive,
-      create_user: createUser,
-      // Добавляем ID из отдельных состояний
-      position_id: positionId ? Number(positionId) : undefined,
-      organization_id: organizationId ? Number(organizationId) : undefined,
-      location_id: showLocationField && locationId ? Number(locationId) : undefined,
-      is_primary_position: true,
+      positions: positionId 
+        ? [{ position_id: Number(positionId), is_primary: true }] 
+        : undefined,
+      create_user: createUser, // Передаем флаг
+      // Пароль передаем только если создаем пользователя
+      password: createUser ? password : undefined,
     };
+
+    let formData: StaffCreate | StaffUpdate;
+
+    if (initialData?.id) {
+      // Это обновление (StaffUpdate)
+      formData = baseData as StaffUpdate; 
+      if (!formData.create_user) {
+        delete formData.create_user;
+        delete formData.password;
+      } 
+
+    } else {
+      // Это создание (StaffCreate)
+      formData = {
+        ...baseData,
+        // Пароль обязателен, если create_user=true
+        password: baseData.create_user ? baseData.password : '', // Пустой пароль, если не создаем
+      } as StaffCreate;
+      // Для StaffCreate пароль должен быть строкой, даже если пустой (или бэк должен обработать Optional[str])
+      // Если бэк ожидает Optional[str], то можно оставить undefined: 
+      // password: baseData.create_user ? baseData.password : undefined,
+    }
     
+    console.log("Отправляем данные формы:", formData);
     onSubmit(formData);
     
-    // Если есть фото для загрузки и указан ID сотрудника - загружаем фото
+    // Если есть фото для загрузки и указан ID сотрудника - загружаем фото после успешного обновления/создания
     if (photoFile && initialData?.id && onPhotoUpload) {
-      onPhotoUpload(initialData.id, photoFile);
+      setTimeout(() => {
+        onPhotoUpload(initialData.id, photoFile);
+      }, 1000); // Немного ждем, чтобы завершилось обновление
     }
   };
 
@@ -253,14 +317,13 @@ const StaffForm: React.FC<StaffFormProps> = ({
               onChange={(event) => setFirstName(event.target.value)}
               error={firstNameError}
             />
+            <TextInput
+              label="Отчество"
+              placeholder="Иванович"
+              value={middleName}
+              onChange={(event) => setMiddleName(event.target.value)}
+            />
           </Group>
-          
-          <TextInput
-            label="Отчество"
-            placeholder="Иванович"
-            value={middleName}
-            onChange={(event) => setMiddleName(event.target.value)}
-          />
           
           <Group grow>
             <TextInput
@@ -273,92 +336,89 @@ const StaffForm: React.FC<StaffFormProps> = ({
             />
             <TextInput
               label="Телефон"
-              placeholder="+7 (999) 123-45-67"
+              placeholder="+79991234567"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
+            <DateInput
+              valueFormat="DD.MM.YYYY"
+              label="Дата приема на работу"
+              placeholder="Выберите дату"
+              value={hireDate}
+              onChange={setHireDate}
+            />
           </Group>
           
-          <DateInput
-            label="Дата приема на работу"
-            placeholder="Выберите дату"
-            valueFormat="DD.MM.YYYY"
-            clearable
-            value={hireDate}
-            onChange={(date) => setHireDate(date)}
-            error={null}
-          />
-          
-          <Divider label="Должность и организация" labelPosition="center" />
-          
-          <Select
-            label="Должность"
-            placeholder="Выберите должность"
-            data={positionOptions}
-            searchable
-            withAsterisk
-            value={positionId}
-            onChange={setPositionId}
-            error={positionIdError}
-          />
-          
-          <Select
-            label="Организация"
-            placeholder="Выберите организацию"
-            data={legalEntities?.map(org => ({
-              value: org.id.toString(),
-              label: org.name,
-            })) || []}
-            searchable
-            clearable
-            required
-            value={organizationId}
-            onChange={setOrganizationId}
-            error={organizationIdError}
-          />
-          
-          {showLocationField && (
+          <Group grow>
+             <Select
+                label="Организация"
+                placeholder="Выберите организацию"
+                data={legalEntities.map(org => ({ value: String(org.id), label: org.name }))}
+                value={organizationId}
+                onChange={setOrganizationId}
+                searchable
+                clearable
+                error={organizationIdError}
+                disabled={isOrganizationsLoading}
+                />
             <Select
-              label="Локация"
-              placeholder="Выберите локацию"
-              data={locations?.map(loc => ({
-                value: loc.id.toString(),
-                label: loc.name,
-              })) || []}
-              searchable
-              clearable
-              value={locationId}
-              onChange={setLocationId}
+                label="Должность"
+                placeholder="Выберите должность"
+                data={positionOptions}
+                value={positionId}
+                onChange={setPositionId}
+                searchable
+                clearable
+                withAsterisk
+                error={positionIdError}
+                disabled={isPositionsLoading}
+                />
+           {showLocationField && (
+            <Select
+                label="Локация"
+                placeholder="Выберите локацию"
+                data={locations.map(loc => ({ value: String(loc.id), label: loc.name }))}
+                value={locationId}
+                onChange={setLocationId}
+                searchable
+                clearable
+                // Локация не обязательна
+                disabled={isOrganizationsLoading}
             />
-          )}
+            )}
+          </Group>
           
-          <Divider label="Пользовательский аккаунт" labelPosition="center" />
-          
-          {!initialData?.user_id && (
-            <Checkbox
-              label="Создать пользовательский аккаунт в системе"
-              checked={createUser}
-              onChange={(event) => handleCreateUserChange(event.currentTarget.checked)}
-            />
-          )}
+          <Divider label="Учетная запись" labelPosition="center" my="md" />
+          <Checkbox
+            label="Создать учетную запись для сотрудника"
+            checked={createUser}
+            onChange={(event) => handleCreateUserChange(event.currentTarget.checked)}
+          />
 
           {createUser && (
-            <Box p="xs" style={{ backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '4px' }}>
-              <Text size="sm" mb="xs">
-                Будет создан пользователь с кодом активации. 
-                <br />Код будет показан после создания сотрудника.
-                <br />Email обязателен для создания пользователя.
-              </Text>
-            </Box>
+            <Group grow>
+              <TextInput
+                label="Пароль"
+                type="password"
+                placeholder="Введите пароль (мин. 6 символов)"
+                value={password}
+                onChange={(event) => setPassword(event.currentTarget.value)}
+                error={passwordError}
+                withAsterisk
+              />
+              <TextInput
+                label="Подтвердите пароль"
+                type="password"
+                placeholder="Повторите пароль"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+                error={passwordError && password !== confirmPassword ? 'Пароли не совпадают' : null} // Дополнительная ошибка
+                withAsterisk
+              />
+            </Group>
           )}
           
-          {initialData?.user_id && (
-            <Text size="sm" c="dimmed">
-              Сотрудник имеет связанный аккаунт пользователя. ID: {initialData.user_id}
-            </Text>
-          )}
-          
-          <Divider label="Фотография" labelPosition="center" />
+          <Divider label="Фото и документы" labelPosition="center" my="md" />
           
           <FileInput
             label="Фотография сотрудника"

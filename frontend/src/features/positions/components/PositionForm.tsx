@@ -25,7 +25,6 @@ const POSITION_LEVELS = [
 // Константы для проверки уровней должностей
 const LEVEL_DIRECTOR = 'DIRECTOR';
 const LEVEL_HEAD = 'HEAD';
-const LEVEL_LEAD = 'LEAD';
 
 // Тип для опций секций
 interface SectionOption {
