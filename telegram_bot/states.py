@@ -5,6 +5,14 @@ class RegistrationStates(StatesGroup):
     # Первый этап - запрос на регистрацию
     waiting_for_name_confirmation = State()  # Ожидание подтверждения имени из Telegram
     waiting_for_name = State()  # Ожидание ввода ФИО
+    
+    # Новые состояния для организации, должности и отдела
+    waiting_for_organization = State()  # Ожидание выбора организации
+    waiting_for_organization_selection = State()  # Ожидание выбора из списка организаций
+    waiting_for_position_input = State()  # Ожидание ввода примерной должности
+    waiting_for_position_selection = State()  # Ожидание выбора из списка должностей
+    waiting_for_division_selection = State()  # Ожидание выбора отдела
+    
     waiting_for_position = State()  # Ожидание ввода должности
     waiting_for_email = State()  # Ожидание ввода email (опционально)
     waiting_for_phone = State()  # Ожидание ввода телефона (опционально)

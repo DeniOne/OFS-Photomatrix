@@ -25,6 +25,7 @@ import {
   IconUserShield,
   IconSearch,
   IconUserCheck,
+  IconSitemap,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../hooks/useAuth';
@@ -64,7 +65,15 @@ const NavLink = ({ to, label, icon, active, isSidebarOpen }: NavLinkProps) => {
           }
         }}
       >
-        {icon}
+        <Box style={{ 
+          minWidth: '24px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          color: active ? theme.white : theme.colors.blue[4]
+        }}>
+          {icon}
+        </Box>
         {isSidebarOpen && <Text size="sm">{label}</Text>}
       </Box>
     </Link>
@@ -102,7 +111,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   
   // Получаем заголовок страницы на основе пути
   const getPageTitle = () => {
-    // ... (логика как раньше)
     switch (location.pathname) {
       case '/dashboard': return 'Обзор системы';
       case '/products': return 'Управление продуктами';
@@ -115,6 +123,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       case '/users': return 'Пользователи';
       case '/reports': return 'Отчеты и аналитика';
       case '/settings': return 'Настройки';
+      case '/orgchart': return 'Оргструктура';
       default: return 'Photomatrix ERP';
     }
   };
@@ -171,17 +180,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Навигация */}
         <Box component="nav" style={{ flex: 1 }}>
           <NavLink
-            to="/dashboard"
-            label="Обзор"
-            icon={<IconLayoutDashboard size={20} />}
-            active={location.pathname === '/dashboard'}
-            isSidebarOpen={isSidebarOpen}
-          />
-          <NavLink
-            to="/products"
-            label="Продукты"
-            icon={<IconPackage size={20} />}
-            active={location.pathname.startsWith('/products')}
+            to="/orgchart"
+            label="Оргструктура"
+            icon={<IconSitemap size={20} />}
+            active={location.pathname.startsWith('/orgchart')}
             isSidebarOpen={isSidebarOpen}
           />
           <NavLink

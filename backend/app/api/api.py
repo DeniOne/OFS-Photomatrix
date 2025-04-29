@@ -1,4 +1,4 @@
-import logging # Добавим стандартный логгер на всякий случай
+import logging
 
 from fastapi import APIRouter
 
@@ -12,6 +12,7 @@ from app.api.endpoints import (
     value_products,
     functions,
     staff,
+    orgchart
 )
 
 api_router = APIRouter()
@@ -35,4 +36,14 @@ logging.info("Подключение роутера /functions...")
 api_router.include_router(functions.router, prefix="/functions", tags=["functions"])
 logging.info("Подключение роутера /staff...")
 api_router.include_router(staff.router, prefix="/staff", tags=["staff"])
+
+# --- Подключаем роутер оргструктуры ---
+logging.info("Подключение роутера /orgchart...")
+api_router.include_router(
+    orgchart.router, 
+    prefix="/orgchart", # Префикс для всех путей в этом роутере
+    tags=["orgchart"]   # Тег для документации Swagger/OpenAPI
+)
+# --------------------------------------
+
 logging.info("--- Все роутеры подключены к api_router ---") 

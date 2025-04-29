@@ -1,12 +1,24 @@
 import uvicorn
 import logging
+import os
+import sys
+import time
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.api import api_router
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles  # Импорт для статических файлов
-import time
-import os
-from app.core.logging import setup_logging, api_logger
+
+# Добавляем корневую директорию проекта в путь импорта
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir.endswith('backend'):
+    # Если запуск из backend, добавляем родительскую директорию
+    sys.path.append(os.path.dirname(current_dir))
+    # Используем относительные импорты
+    from app.api.api import api_router
+    from app.core.logging import setup_logging, api_logger
+else:
+    # Если запуск из корня проекта
+    from backend.app.api.api import api_router
+    from backend.app.core.logging import setup_logging, api_logger
 
 # Инициализация логгера
 logger = setup_logging()
@@ -61,17 +73,8 @@ app.add_middleware(
     allow_methods=["*"],  # Разрешаем все методы
     allow_headers=["*"],  # Разрешаем все заголовки
     expose_headers=["*"],  # Делаем видимыми все заголовки для JS
+    max_age=86400,  # Увеличиваем время кэширования preflight запросов (24 часа)
 )
-
-# # Добавляем специальное middleware для добавления CORS-заголовков вручную (ЗАКОММЕНТИРОВАНО - может конфликтовать)
-# @app.middleware("http")
-# async def add_cors_headers(request: Request, call_next):
-#     response = await call_next(request)
-#     response.headers["Access-Control-Allow-Origin"] = "*"
-#     response.headers["Access-Control-Allow-Credentials"] = "true"
-#     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-#     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-#     return response
 
 # Подключение API роутеров
 app.include_router(api_router, prefix="/api/v1")
@@ -93,11 +96,6 @@ async def root():
 async def health_check():
     logger.info("Проверка здоровья системы")
     return {"status": "ok"}
-
-# Обработчик OPTIONS-запросов для preflight CORS
-@app.options("/{path:path}")
-async def options_handler(request: Request, path: str):
-    return {}
 
 if __name__ == "__main__":
     logger.info("Запуск сервера через точку входа main.py")

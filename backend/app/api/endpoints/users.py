@@ -21,7 +21,7 @@ async def read_users(
     """
     Получить список пользователей (только для суперпользователя)
     """
-    users = await crud_user.user.get_multi(db, skip=skip, limit=limit)
+    users = await crud_user.get_multi(db, skip=skip, limit=limit)
     return users
 
 @router.post("/", response_model=UserSchema)
@@ -34,13 +34,13 @@ async def create_user(
     """
     Создать нового пользователя (только для суперпользователя)
     """
-    user = await crud_user.user.get_by_email(db, email=user_in.email)
+    user = await crud_user.get_by_email(db, email=user_in.email)
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Пользователь с таким email уже существует",
         )
-    user = await crud_user.user.create(db, obj_in=user_in)
+    user = await crud_user.create(db, obj_in=user_in)
     return user
 
 @router.get("/me", response_model=UserSchema)
@@ -62,7 +62,7 @@ async def update_user_me(
     """
     Обновить данные текущего пользователя
     """
-    user = await crud_user.user.update(db, db_obj=current_user, obj_in=user_in)
+    user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
     return user
 
 @router.get("/{user_id}", response_model=UserSchema)
@@ -74,7 +74,7 @@ async def read_user(
     """
     Получить пользователя по ID
     """
-    user = await crud_user.user.get(db, id=user_id)
+    user = await crud_user.get(db, id=user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -93,11 +93,11 @@ async def update_user(
     """
     Обновить пользователя по ID (только для суперпользователя)
     """
-    user = await crud_user.user.get(db, id=user_id)
+    user = await crud_user.get(db, id=user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден",
         )
-    user = await crud_user.user.update(db, db_obj=user, obj_in=user_in)
+    user = await crud_user.update(db, db_obj=user, obj_in=user_in)
     return user 

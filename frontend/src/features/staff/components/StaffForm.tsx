@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   TextInput, Button, Group, Switch, Box, LoadingOverlay, Stack, 
   Checkbox, FileInput, Divider, Text, 
-  Select, Badge, ActionIcon, Paper, List, Anchor
+  Select, Paper, List, Anchor
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import { IconUpload, IconTrash } from '@tabler/icons-react';
-import { Staff, StaffCreate, StaffUpdate } from '../../../types/staff';
+import { IconUpload } from '@tabler/icons-react';
+import { Staff, StaffCreate, StaffUpdate, StaffPositionCreateData } from '../../../types/staff';
 import { usePositionsList, useOrganizationsList } from '../api/staffApi';
 
 export const DOCUMENT_TYPES = [
@@ -23,10 +23,9 @@ const getDocumentTypeName = (docType: string): string => {
   return foundType ? foundType.label : docType;
 };
 
-// Константы для проверки уровней должностей - должны совпадать с теми, что используются в PositionForm
+// Константы для проверки уровней должностей
 const LEVEL_DIRECTOR = 'DIRECTOR';
 const LEVEL_HEAD = 'HEAD';
-const LEVEL_LEAD = 'LEAD';
 
 // Парсинг даты из ISO формата
 const parseDate = (dateString?: string | null) => {
@@ -106,13 +105,11 @@ const StaffForm: React.FC<StaffFormProps> = ({
   );
   
   const [locationId, setLocationId] = useState<string | null>(
-    initialData?.staff_positions?.[0]?.position?.section_id 
-      ? String(initialData.staff_positions[0].position.section_id) 
-      : null
+    null
   );
-  const [password, setPassword] = useState<string>(''); // Состояние для пароля
-  const [confirmPassword, setConfirmPassword] = useState<string>(''); // Состояние для подтверждения пароля
-  const [passwordError, setPasswordError] = useState<string | null>(null); // Ошибка пароля
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Эффект для обновления уровня должности при выборе должности
   useEffect(() => {
@@ -210,6 +207,10 @@ const StaffForm: React.FC<StaffFormProps> = ({
     }
     
     // Преобразуем форму в формат для отправки
+    const positionsData: StaffPositionCreateData[] | undefined = positionId 
+        ? [{ position_id: Number(positionId), is_primary: true }] 
+        : undefined;
+
     const baseData = {
       first_name: firstName,
       last_name: lastName,
@@ -217,15 +218,12 @@ const StaffForm: React.FC<StaffFormProps> = ({
       email: email || undefined,
       phone: phone || undefined,
       hire_date: hireDate 
-        ? `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}-${String(hireDate.getDate()).padStart(2, '0')}` // Формат YYYY-MM-DD
+        ? `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}-${String(hireDate.getDate()).padStart(2, '0')}`
         : undefined,
-      organization_id: organizationId ? Number(organizationId) : undefined, // ID организации
+      organization_id: organizationId ? Number(organizationId) : undefined,
       is_active: isActive,
-      positions: positionId 
-        ? [{ position_id: Number(positionId), is_primary: true }] 
-        : undefined,
-      create_user: createUser, // Передаем флаг
-      // Пароль передаем только если создаем пользователя
+      positions: positionsData,
+      create_user: createUser,
       password: createUser ? password : undefined,
     };
 
@@ -233,22 +231,33 @@ const StaffForm: React.FC<StaffFormProps> = ({
 
     if (initialData?.id) {
       // Это обновление (StaffUpdate)
-      formData = baseData as StaffUpdate; 
-      if (!formData.create_user) {
-        delete formData.create_user;
-        delete formData.password;
-      } 
+      const updateData: StaffUpdate = {
+        first_name: baseData.first_name,
+        last_name: baseData.last_name,
+        middle_name: baseData.middle_name,
+        email: baseData.email,
+        phone: baseData.phone,
+        hire_date: baseData.hire_date,
+        organization_id: baseData.organization_id,
+        is_active: baseData.is_active,
+        positions: baseData.positions,
+      };
+
+      // Убираем undefined поля, чтобы не перезаписывать на null на бэке
+       Object.keys(updateData).forEach(key => {
+         if ((updateData as any)[key] === undefined) {
+           delete (updateData as any)[key];
+         }
+       });
+       
+      formData = updateData;
 
     } else {
       // Это создание (StaffCreate)
       formData = {
         ...baseData,
-        // Пароль обязателен, если create_user=true
-        password: baseData.create_user ? baseData.password : '', // Пустой пароль, если не создаем
+        password: baseData.create_user ? baseData.password : undefined,
       } as StaffCreate;
-      // Для StaffCreate пароль должен быть строкой, даже если пустой (или бэк должен обработать Optional[str])
-      // Если бэк ожидает Optional[str], то можно оставить undefined: 
-      // password: baseData.create_user ? baseData.password : undefined,
     }
     
     console.log("Отправляем данные формы:", formData);
@@ -261,10 +270,6 @@ const StaffForm: React.FC<StaffFormProps> = ({
       }, 1000); // Немного ждем, чтобы завершилось обновление
     }
   };
-
-  // Обработчик загрузки фото после создания сотрудника
-
-  // Обработчик загрузки документа после создания сотрудника
 
   // Преобразуем должности в формат для компонента Select
   const positionOptions = positions?.map(position => ({

@@ -12,7 +12,11 @@ import time
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -316,33 +320,51 @@ class BotDatabase:
             
             # Конвертируем telegram_id в строку для сравнения
             telegram_id_str = str(telegram_id)
+            logger.info(f"👤 Проверка прав администратора для ID: {telegram_id_str}")
             
             # Проверяем сначала по telegram_id
+            logger.info(f"🔍 Выполняем SQL-запрос по telegram_id: {telegram_id_str}")
             self.cursor.execute('''
             SELECT COUNT(*) as count FROM admins 
             WHERE telegram_id = ? AND is_active = 1
             ''', (telegram_id_str,))
             
             result = self.cursor.fetchone()
+            count_by_id = result['count'] if result else 0
+            logger.info(f"📊 Результат SQL-запроса по ID: найдено {count_by_id} записей")
             
             # Проверяем, найден ли админ по ID
-            if result and result['count'] > 0:
+            if count_by_id > 0:
+                logger.info(f"✅ Пользователь {telegram_id_str} найден в таблице admins по ID и является активным админом")
                 return True
+            
+            logger.info(f"⚠️ Пользователь {telegram_id_str} не найден в таблице admins по ID")
                 
             # Если по ID не найден, и ID начинается с @, проверяем также по username
             if telegram_id_str.startswith('@'):
                 username = telegram_id_str.lstrip('@')
+                logger.info(f"🔍 ID начинается с @, проверяем по username: {username}")
+                
                 self.cursor.execute('''
                 SELECT COUNT(*) as count FROM admins 
                 WHERE username = ? AND is_active = 1
                 ''', (username,))
                 
                 result = self.cursor.fetchone()
-                return result['count'] > 0
+                count_by_username = result['count'] if result else 0
                 
+                logger.info(f"📊 Результат SQL-запроса по username: найдено {count_by_username} записей")
+                
+                if count_by_username > 0:
+                    logger.info(f"✅ Пользователь {telegram_id_str} найден в таблице admins по username и является активным админом")
+                    return True
+                
+                logger.info(f"⚠️ Пользователь {telegram_id_str} не найден в таблице admins по username")
+            
+            logger.info(f"❌ Пользователь {telegram_id_str} не является администратором")
             return False
         except Exception as e:
-            logger.error(f"Ошибка при проверке прав администратора: {e}")
+            logger.error(f"❌ Ошибка при проверке прав администратора: {e}")
             return False
         finally:
             self._disconnect()
@@ -351,14 +373,31 @@ class BotDatabase:
         """Проверяет, является ли пользователь супер-администратором"""
         try:
             self._connect()
+            
+            # Конвертируем telegram_id в строку для сравнения
+            telegram_id_str = str(telegram_id)
+            logger.info(f"👑 Проверка прав суперадмина для ID: {telegram_id_str}")
+            
+            # Проверяем наличие суперадмина в БД
+            logger.info(f"🔍 Выполняем SQL-запрос на наличие суперадмина: {telegram_id_str}")
             self.cursor.execute('''
             SELECT COUNT(*) as count FROM admins 
             WHERE telegram_id = ? AND permission_level = 2 AND is_active = 1
-            ''', (telegram_id,))
+            ''', (telegram_id_str,))
+            
             result = self.cursor.fetchone()
-            return result['count'] > 0
+            count = result['count'] if result else 0
+            
+            logger.info(f"📊 Результат SQL-запроса суперадмина: найдено {count} записей")
+            
+            if count > 0:
+                logger.info(f"✅ Пользователь {telegram_id_str} найден в таблице admins как суперадмин (permission_level=2)")
+                return True
+            
+            logger.info(f"❌ Пользователь {telegram_id_str} не является суперадмином")
+            return False
         except Exception as e:
-            logger.error(f"Ошибка при проверке прав супер-администратора: {e}")
+            logger.error(f"❌ Ошибка при проверке прав суперадмина: {e}")
             return False
         finally:
             self._disconnect()

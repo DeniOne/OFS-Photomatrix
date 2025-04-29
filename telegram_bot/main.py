@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sys
+import os
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -14,7 +15,11 @@ from database import BotDatabase
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,20 @@ config = Config()
 async def main():
     """Основная функция запуска бота"""
     logger.info("Запуск бота для регистрации сотрудников OFS Global")
+    
+    # Синхронизируем данные из БД перед запуском бота
+    try:
+        # Исправляем импорт - без префикса telegram_bot, так как мы уже в этой директории
+        from sync_db import sync_all_data, sync_divisions_from_db, sync_sections_from_db, sync_positions_from_db
+        
+        logger.info("Начинаю синхронизацию всех данных из БД...")
+        if sync_all_data():
+            logger.info("✅ Все данные успешно синхронизированы из БД")
+        else:
+            logger.warning("⚠️ Не удалось синхронизировать все данные из БД")
+    except Exception as e:
+        logger.error(f"❌ Ошибка при попытке синхронизации данных: {str(e)}")
+        logger.exception("Подробная информация об ошибке:")
     
     # Проверяем, есть ли токен бота
     if not config.BOT_TOKEN:
@@ -53,6 +72,16 @@ async def main():
     
     # Удаляем все обновления, накопившиеся за время остановки бота
     await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Установка команд бота
+    from aiogram.types import BotCommand
+    commands = [
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="help", description="Показать справку"),
+        BotCommand(command="admin", description="Панель администратора"),
+        BotCommand(command="cancel", description="Отменить текущее действие")
+    ]
+    await bot.set_my_commands(commands)
     
     # Запуск поллинга
     logger.info("Бот запущен и ожидает сообщений")

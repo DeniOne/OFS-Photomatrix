@@ -1,11 +1,11 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from app.db.base import get_db
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user_or_api_key, get_current_active_user
 from app import crud, models, schemas
 from app.schemas.position import Position, PositionCreate, PositionUpdate
 from app.models.functional_assignment import FunctionalAssignment
@@ -18,7 +18,7 @@ async def read_positions(
     skip: int = 0,
     limit: int = 100,
     section_id: Optional[int] = Query(None, description="Фильтр по отделу"),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user_or_api_key: Union[models.User, str] = Depends(get_current_active_user_or_api_key),
 ) -> Any:
     """
     Получить список должностей с возможностью фильтрации
@@ -47,7 +47,7 @@ async def create_position(
     *,
     db: AsyncSession = Depends(get_db),
     position_in: PositionCreate,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user_or_api_key: Union[models.User, str] = Depends(get_current_active_user_or_api_key),
 ) -> Any:
     """
     Создать новую должность
@@ -115,7 +115,7 @@ async def read_position(
     *,
     db: AsyncSession = Depends(get_db),
     id: int,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user_or_api_key: Union[models.User, str] = Depends(get_current_active_user_or_api_key),
 ) -> Any:
     """
     Получить должность по ID
@@ -141,7 +141,7 @@ async def update_position(
     db: AsyncSession = Depends(get_db),
     id: int,
     position_in: PositionUpdate,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user_or_api_key: Union[models.User, str] = Depends(get_current_active_user_or_api_key),
 ) -> Any:
     """
     Обновить должность
@@ -237,7 +237,7 @@ async def delete_position(
     *,
     db: AsyncSession = Depends(get_db),
     id: int,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user_or_api_key: Union[models.User, str] = Depends(get_current_active_user_or_api_key),
 ) -> Any:
     """
     Удалить должность

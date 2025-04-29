@@ -107,8 +107,8 @@ def upgrade() -> None:
     sa.Column('end_date', sa.Date(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['function_id'], ['function.id'], ),
-    sa.ForeignKeyConstraint(['position_id'], ['position.id'], ),
+    sa.ForeignKeyConstraint(['function_id'], ['function.id'], name='fk_functional_assignment_function_id', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['position_id'], ['position.id'], name='fk_functional_assignment_position_id', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('position_id', 'function_id', name='uix_position_function')
     )

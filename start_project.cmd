@@ -1,67 +1,72 @@
 @echo off
-chcp 65001 > nul
-color 0A
-title Запуск проекта OFS-Photomatrix
+setlocal enabledelayedexpansion
 
-echo ╔════════════════════════════════════════╗
-echo ║      ЗАПУСК ПРОЕКТА OFS-PHOTOMATRIX    ║
-echo ╚════════════════════════════════════════╝
-echo.
+echo ===============================================
+echo =            ЗАПУСК ОФС ФОТОМАТРИКС          =
+echo ===============================================
 
-:: Проверяем наличие скрипта для бэкенда
-if not exist "start_backend.cmd" (
-    color 0C
-    echo Ошибка: Файл start_backend.cmd не найден!
-    echo Убедитесь, что он находится в той же папке, что и этот скрипт.
-    goto END
+REM Проверка наличия корневого .env файла
+if not exist ".env" (
+    echo [!] Корневой .env файл не найден
+    echo [!] Создаю файл .env с настройками по умолчанию...
+    
+    (
+        echo # Общие настройки подключения к БД
+        echo DATABASE_URL=postgresql+asyncpg://ofs_user:111@localhost:5432/ofs_photomatrix
+        echo DB_USER=ofs_user
+        echo DB_PASSWORD=111
+        echo DB_HOST=localhost
+        echo DB_PORT=5432
+        echo DB_NAME=ofs_photomatrix
+        echo DB_ENCODING=utf8
+        echo.
+        echo # Настройки API бэкенда
+        echo API_URL=http://localhost:8000/api/v1
+        echo API_KEY=test_api_key_1234567890
+        echo SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+        echo ACCESS_TOKEN_EXPIRE_MINUTES=30
+        echo.
+        echo # Настройки для бота Telegram
+        echo BOT_TOKEN=ваш_токен_бота
+        echo ADMIN_IDS=ваш_telegram_id
+        echo STORAGE_PATH=./data
+        echo.
+        echo # Настройки логирования
+        echo LOG_LEVEL=INFO
+        echo LOG_FILE=app.log
+    ) > .env
+    
+    echo [i] Создан файл .env с настройками по умолчанию
+    echo [!] ВНИМАНИЕ: Необходимо отредактировать файл .env и указать правильные настройки
+    pause
 )
-echo [1] Запускаем бэкенд (start_backend.cmd) в новом окне...
-start "OFS-Photomatrix Backend" cmd /c start_backend.cmd
-echo    - Окно бэкенда запущено. Смотрите логи там.
 
-echo [2] Запускаем фронтенд...
-:: Проверяем папку frontend
-if not exist "frontend" (
-    color 0C
-    echo Ошибка: Директория frontend не найдена!
-    echo Убедитесь, что скрипт запущен из корневой папки проекта.
-    goto END
+REM Синхронизируем данные из БД в JSON
+echo [i] Синхронизация данных из БД...
+cd telegram_bot
+if exist "sync_db.bat" (
+    call sync_db.bat
+) else (
+    python -c "from sync_db import sync_all_data; sync_all_data()"
 )
-:: Проверяем package.json
-if not exist "frontend\package.json" (
-    color 0C
-    echo Ошибка: package.json не найден в папке frontend!
-    goto END
-)
-
-:: Надежный запуск фронтенда
-cd frontend
-start "OFS-Photomatrix Frontend" cmd /k "npm run dev"
 cd ..
-echo    - Окно фронтенда запущено. Смотрите логи там.
+
+REM Запускаем бэкенд в отдельном окне cmd
+echo [i] Запуск бэкенда...
+start "ОФС Фотоматрикс - Бэкенд" cmd /c "cd backend && python main.py"
+
+REM Запускаем фронтенд в отдельном окне cmd, если доступен
+if exist "frontend/package.json" (
+    echo [i] Запуск фронтенда...
+    start "ОФС Фотоматрикс - Фронтенд" cmd /c "cd frontend && npm run dev"
+)
+
+REM Запускаем телеграм-бот в текущем окне
+echo [i] Запуск Telegram бота...
+cd telegram_bot
+python bot.py
 
 echo.
-echo [3] Пауза 5 секунд для инициализации серверов...
-timeout /t 5 /nobreak > nul
-echo.
-echo ╔════════════════════════════════════════╗
-echo ║        СЕРВЕРЫ ДОЛЖНЫ БЫТЬ ГОТОВЫ     ║
-echo ╚════════════════════════════════════════╝
-echo.
-echo * Бэкенд (API Docs): http://127.0.0.1:8000/docs
-echo * Фронтенд:         http://localhost:5173
-echo.
-echo Для остановки закройте окна серверов (Backend и Frontend) или нажмите Ctrl+C в них.
-echo.
-echo ╔════════════════════════════════════════╗
-echo ║   СОВЕТЫ ПО ОПТИМИЗАЦИИ ПРОИЗВОДИТ.   ║
-echo ╚════════════════════════════════════════╝
-echo.
-echo * Для ускорения загрузки фронтенда вы можете:
-echo   1. Закрыть окно фронтенда
-echo   2. Запустить скрипт frontend\clean-simple.ps1 отдельно
-echo      (через PowerShell с флагом -ExecutionPolicy Bypass)
-echo.
-
-:END
+echo [+] Все компоненты успешно запущены!
+echo [i] Для завершения работы закройте все открытые окна cmd.
 pause

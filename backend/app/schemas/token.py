@@ -18,4 +18,15 @@ class TokenData(BaseModel):
     """
     Данные из токена
     """
-    username: str 
+    username: str
+
+class UserActivation(BaseModel):
+    activation_code: str
+    password: str
+    password_confirm: Optional[str] = None
+    
+class ActivationResponse(BaseModel):
+    message: str
+    is_active: bool
+    access_token: Optional[str] = None
+    token_type: Optional[str] = None 

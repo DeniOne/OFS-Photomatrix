@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 def get_main_keyboard() -> ReplyKeyboardMarkup:
     """Создает основную клавиатуру бота"""
     kb = [
-        [KeyboardButton(text="📝 Регистрация"), KeyboardButton(text="❓ Помощь")]
+        [KeyboardButton(text="📝 Зарегистрироваться"), KeyboardButton(text="❓ Помощь")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
@@ -13,6 +13,7 @@ def get_admin_keyboard() -> ReplyKeyboardMarkup:
     kb = [
         [KeyboardButton(text="📋 Заявки"), KeyboardButton(text="📊 Статистика")],
         [KeyboardButton(text="👥 Управление админами"), KeyboardButton(text="🧑‍💼 Сотрудники")],
+        [KeyboardButton(text="🔄 Обновить должности")],
         [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
@@ -226,6 +227,14 @@ def get_back_to_main_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
+def get_main_inline_keyboard() -> InlineKeyboardMarkup:
+    """Создает инлайн-клавиатуру для главного меню"""
+    kb = [
+        [InlineKeyboardButton(text="📝 Зарегистрироваться", callback_data="start_registration")],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="show_help")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
 def get_staff_list_keyboard(staff: List[Dict[str, Any]], page: int = 0, per_page: int = 5) -> InlineKeyboardMarkup:
     """Создает клавиатуру для списка сотрудников с пагинацией"""
     kb = []
@@ -295,18 +304,35 @@ def get_skip_photo_keyboard() -> ReplyKeyboardMarkup:
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
-def get_divisions_keyboard() -> InlineKeyboardMarkup:
-    """Создает клавиатуру для выбора департамента"""
-    divisions = [
-        "Разработка", "Маркетинг", "Продажи", 
-        "HR", "Финансы", "Операционный"
-    ]
-    
+def get_divisions_keyboard(divisions: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора отдела из списка"""
     kb = []
-    for dept in divisions:
-        kb.append([InlineKeyboardButton(text=dept, callback_data=f"dept_{dept}")])
     
-    kb.append([InlineKeyboardButton(text="Отмена", callback_data="cancel_dept")])
+    # Проверяем, что отделы есть
+    if not divisions:
+        kb.append([
+            InlineKeyboardButton(
+                text="❌ Отделы не найдены",
+                callback_data="noop"
+            )
+        ])
+    else:
+        # Сортируем отделы по имени
+        sorted_divisions = sorted(divisions, key=lambda x: x.get('name', ''))
+        
+        # Добавляем кнопки с отделами
+        for division in sorted_divisions:
+            division_name = division.get('name', 'Неизвестный отдел')
+            
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"{division_name}",
+                    callback_data=f"div_{division.get('id')}"
+                )
+            ])
+    
+    # Добавляем кнопку пропуска выбора отдела
+    kb.append([InlineKeyboardButton(text="⏭️ Пропустить", callback_data="skip_division")])
     
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
@@ -371,4 +397,112 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
     kb = [
         [KeyboardButton(text="❌ Отменить")]
     ]
-    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True) 
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+def get_organizations_keyboard(organizations: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора организации из списка"""
+    kb = []
+    
+    # Проверяем, что организации есть
+    if not organizations:
+        kb.append([
+            InlineKeyboardButton(
+                text="❌ Организации не найдены",
+                callback_data="noop"
+            )
+        ])
+    else:
+        # Сортируем организации по имени
+        sorted_organizations = sorted(organizations, key=lambda x: x.get('name', ''))
+        
+        # Добавляем кнопки с организациями
+        for org in sorted_organizations:
+            # Получаем название организации
+            org_name = org.get('name', 'Неизвестная организация')
+            
+            # Создаем callback_data в формате "org_ID"
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"{org_name}",
+                    callback_data=f"org_{org.get('id')}"
+                )
+            ])
+    
+    # Добавляем кнопку отмены
+    kb.append([InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_registration")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def get_real_positions_keyboard(positions: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора должности из списка"""
+    kb = []
+    
+    # Проверяем, что должности есть
+    if not positions:
+        kb.append([
+            InlineKeyboardButton(
+                text="❌ Должности не найдены",
+                callback_data="noop"
+            )
+        ])
+    else:
+        # Сортируем должности по имени
+        sorted_positions = sorted(positions, key=lambda x: x.get('name', ''))
+        
+        # Добавляем кнопки с должностями
+        for position in sorted_positions:
+            # Получаем название должности
+            position_name = position.get('name', 'Неизвестная должность')
+            
+            # Создаем callback_data в формате "pos_ID"
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"{position_name}",
+                    callback_data=f"pos_{position.get('id')}"
+                )
+            ])
+    
+    # Добавляем кнопку ручного ввода должности
+    kb.append([InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="manual_position")])
+    
+    # Добавляем кнопку отмены
+    kb.append([InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_registration")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def get_real_divisions_keyboard(divisions: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора отдела из списка"""
+    kb = []
+    
+    # Проверяем, что отделы есть
+    if not divisions:
+        kb.append([
+            InlineKeyboardButton(
+                text="❌ Отделы не найдены",
+                callback_data="noop"
+            )
+        ])
+    else:
+        # Сортируем отделы по имени
+        sorted_divisions = sorted(divisions, key=lambda x: x.get('name', ''))
+        
+        # Добавляем кнопки с отделами
+        for division in sorted_divisions:
+            # Получаем название отдела
+            division_name = division.get('name', 'Неизвестный отдел')
+            
+            # Создаем callback_data в формате "div_ID"
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"{division_name}",
+                    callback_data=f"div_{division.get('id')}"
+                )
+            ])
+    
+    # Добавляем кнопку пропуска
+    kb.append([InlineKeyboardButton(text="⏭️ Пропустить", callback_data="skip_division")])
+    
+    # Добавляем кнопку назад
+    kb.append([InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_positions")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=kb) 

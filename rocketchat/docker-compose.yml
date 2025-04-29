@@ -1,0 +1,56 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo:5.0
+    restart: always
+    volumes:
+      - ./data/db:/data/db
+    command: mongod --replSet rs0
+    networks:
+      - rocketchat_network
+
+  # инициализатор репликасета MongoDB (необходим для Rocket.Chat)
+  mongo-init-replica:
+    image: mongo:5.0
+    restart: "no"
+    command: >
+      bash -c "for i in `seq 1 30`; do 
+        mongo mongo/rocketchat --eval \"
+          rs.initiate({
+            _id: 'rs0',
+            members: [ { _id: 0, host: 'mongo:27017' } ]})\" &&
+        s=$$? && break || s=$$?;
+        echo \"Tried $$i times. Waiting 5 secs...\";
+        sleep 5;
+      done; (exit $$s)"
+    depends_on:
+      - mongo
+    networks:
+      - rocketchat_network
+
+  # сам Rocket.Chat
+  rocketchat:
+    image: rocketchat/rocket.chat:latest
+    restart: always
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - PORT=3000
+      - ROOT_URL=http://localhost:3333
+      - MONGO_URL=mongodb://mongo:27017/rocketchat
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local
+      - MAIL_URL=smtp://smtp.example.com:587
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASS=photomatrix2024
+      - ADMIN_EMAIL=admin@photomatrix.ru
+    depends_on:
+      - mongo
+    ports:
+      - "3333:3000"
+    networks:
+      - rocketchat_network
+
+networks:
+  rocketchat_network:
+    driver: bridge 

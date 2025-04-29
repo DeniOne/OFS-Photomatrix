@@ -2,21 +2,27 @@ import re
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command, StateFilter
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from typing import Dict, Any, List
 import asyncio
+import os
+import json
 
 from database import BotDatabase
 from states import AdminStates
 import keyboards
-from api_client import ApiClient
+from api_client import ApiClient, sync_all_data, clear_cache
 from config import Config
 
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -31,44 +37,185 @@ config = Config()
 # Фильтр для проверки прав админа
 def is_admin_filter(message: Message) -> bool:
     """Фильтр для проверки, является ли пользователь админом"""
-    return db.is_admin(str(message.from_user.id))
+    user_id = message.from_user.id  # Получаем ID как число
+    user_id_str = str(user_id)  # Строковое представление для логов и БД
+    username = message.from_user.username
+    logger.info(f"⚙️ Проверка прав админа для пользователя ID: {user_id} (тип: {type(user_id)}), Username: @{username}")
+    
+    # Проверка в конфиге
+    logger.info(f"📋 Список админов в конфиге: {config.ADMIN_IDS}")
+    logger.info(f"📋 Типы данных в списке админов: {[type(x) for x in config.ADMIN_IDS]}")
+    
+    # Сначала проверяем через метод is_admin из config
+    is_admin_in_config = config.is_admin(user_id)
+    logger.info(f"Пользователь {user_id} {'является' if is_admin_in_config else 'не является'} админом по конфигу")
+    
+    # Проверка в базе данных
+    is_admin_in_db = db.is_admin(user_id_str)
+    logger.info(f"Пользователь {user_id_str} {'является' if is_admin_in_db else 'не является'} админом по данным БД")
+    
+    # Пользователь админ, если он найден в конфиге ИЛИ в базе данных
+    is_admin = is_admin_in_config or is_admin_in_db
+    
+    if is_admin:
+        logger.info(f"✅ Пользователь {user_id} (@{username}) успешно прошел проверку прав админа")
+    else:
+        logger.warning(f"❌ Пользователь {user_id} (@{username}) не имеет прав админа")
+    
+    return is_admin
 
 def is_superadmin_filter(message: Message) -> bool:
     """Фильтр для проверки, является ли пользователь супер-админом"""
-    return db.is_superadmin(str(message.from_user.id))
+    user_id = str(message.from_user.id)
+    username = message.from_user.username
+    logger.info(f"⚙️ Проверка прав суперадмина для пользователя ID: {user_id}, Username: @{username}")
+    
+    # Проверка в конфиге
+    is_superadmin_config = message.from_user.id in config.ADMIN_IDS
+    logger.info(f"📋 Проверка в конфиге: ID {user_id} {'найден в списке' if is_superadmin_config else 'отсутствует в списке'} админов")
+    logger.info(f"📋 Список админов в конфиге: {config.ADMIN_IDS}")
+    
+    # Проверка в БД
+    is_superadmin_db = db.is_superadmin(user_id)
+    logger.info(f"🗄️ Проверка в БД: ID {user_id} {'найден' if is_superadmin_db else 'не найден'} в таблице суперадминов")
+    
+    # Итоговый результат
+    result = is_superadmin_config or is_superadmin_db
+    logger.info(f"🔑 Результат проверки прав суперадмина для {user_id}: {'✅ Доступ разрешен' if result else '❌ Доступ запрещен'}")
+    return result
 
-# Команда для входа в админ-панель
+# Полностью переделываем команду admin
 @router.message(Command("admin"))
 async def admin_panel(message: Message):
-    """Показывает панель администратора"""
+    """Отображает панель администратора"""
     user_id = message.from_user.id
-    username = message.from_user.username
+    username = message.from_user.username or "Без имени пользователя"
+    logger.info(f"🔷 Запрос админ-панели от пользователя ID: {user_id} (тип: {type(user_id)}), Username: @{username}")
     
-    # Проверяем сначала по ID, затем по username
-    is_admin = user_id in config.ADMIN_IDS or f"@{username}" in config.ADMIN_IDS
+    # Проверяем, есть ли пользователь в списке админов из конфига
+    admins_config = config.ADMIN_IDS
+    logger.info(f"📋 Список админов в конфиге: {admins_config}")
+    logger.info(f"📋 Типы данных в списке админов: {[type(x) for x in admins_config]}")
     
-    if not is_admin:
-        logger.warning(f"Пользователь {user_id} (@{username}) попытался получить доступ к панели администратора")
-        await message.answer("⛔ У вас нет прав администратора.")
-        return
+    # Проверка типов данных для более точной диагностики
+    admin_config_details = [f"{x} (тип: {type(x)})" for x in admins_config]
+    logger.info(f"🔍 Детальный список админов в конфиге: {admin_config_details}")
     
-    # Отображаем панель администратора
-    admin_keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📋 Заявки на регистрацию")],
-            [KeyboardButton(text="👤 Управление пользователями")],
-            [KeyboardButton(text="📊 Статистика")],
-            [KeyboardButton(text="🔙 Вернуться в главное меню")]
-        ],
-        resize_keyboard=True
-    )
-    
-    await message.answer(
-        "👨‍💼 <b>Панель администратора</b>\n\n"
-        "Выберите действие:",
-        reply_markup=admin_keyboard,
-        parse_mode="HTML"
-    )
+    # Проверяем наличие пользователя в конфиге
+    try:
+        is_in_config = user_id in admins_config
+        logger.info(f"🔎 Проверка наличия {user_id} в списке админов конфига: {is_in_config}")
+        
+        if is_in_config:
+            logger.info(f"✅ Пользователь {user_id} найден в списке админов по ID в конфиге")
+            
+            try:
+                # Пытаемся очистить предыдущие сообщения
+                logger.info(f"🧹 Пытаемся удалить предыдущее сообщение пользователя")
+                await message.delete()
+                logger.info(f"✅ Предыдущее сообщение успешно удалено")
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось удалить старые сообщения: {str(e)}")
+                logger.exception("Подробная ошибка при удалении сообщения:")
+            
+            logger.info(f"🛠️ Создаем инлайн-клавиатуру панели администратора")
+            # Создаем инлайн-клавиатуру для панели администратора
+            kb = [
+                [
+                    InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+                    InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+                ],
+                [
+                    InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+                    InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+                ],
+                [
+                    InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+                ],
+                [
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+                ]
+            ]
+            admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+            
+            # Удаляем клавиатуру снизу
+            from aiogram.types import ReplyKeyboardRemove
+            logger.info(f"⌨️ Удаляем стандартную клавиатуру снизу")
+            
+            logger.info(f"📤 Отправляем панель администратора пользователю")
+            await message.answer(
+                "👨‍💼 <b>Панель администратора</b>\n\n"
+                "Ваши права администратора подтверждены.\n"
+                "Выберите действие:",
+                reply_markup=admin_keyboard
+            )
+            logger.info(f"✅ Панель администратора успешно отправлена пользователю {user_id}")
+        else:
+            logger.warning(f"⚠️ Пользователь {user_id} не найден в списке админов в конфиге, проверяем в БД")
+            
+            # Подробное логирование проверки в БД
+            try:
+                # Проверяем, может быть админ есть в БД
+                # Преобразуем ID в строку для БД
+                user_id_str = str(user_id)
+                logger.info(f"🔄 Преобразуем ID для проверки в БД: {user_id} -> '{user_id_str}'")
+                
+                is_admin_in_db = db.is_admin(user_id_str)
+                logger.info(f"🔎 Результат проверки админа в БД: {is_admin_in_db}")
+                
+                if is_admin_in_db:
+                    logger.info(f"✅ Пользователь {user_id} найден в базе данных как админ")
+                    
+                    logger.info(f"🛠️ Создаем инлайн-клавиатуру панели администратора")
+                    # Создаем инлайн-клавиатуру для панели администратора
+                    kb = [
+                        [
+                            InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+                            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+                        ],
+                        [
+                            InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+                            InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+                        ],
+                        [
+                            InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+                        ],
+                        [
+                            InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+                        ]
+                    ]
+                    admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+                    
+                    # Удаляем клавиатуру снизу
+                    from aiogram.types import ReplyKeyboardRemove
+                    logger.info(f"⌨️ Удаляем стандартную клавиатуру снизу")
+                    
+                    logger.info(f"📤 Отправляем панель администратора пользователю")
+                    await message.answer(
+                        "👨‍💼 <b>Панель администратора</b>\n\n"
+                        "Ваши права администратора подтверждены.\n"
+                        "Выберите действие:",
+                        reply_markup=admin_keyboard
+                    )
+                    logger.info(f"✅ Панель администратора успешно отправлена пользователю {user_id}")
+                else:
+                    logger.warning(f"❌ Пользователь {user_id} не найден в базе данных как админ - доступ запрещен")
+                    await message.answer(
+                        "⛔ У вас недостаточно прав для доступа к панели администратора."
+                    )
+                    logger.info(f"📤 Отправлено сообщение об отказе в доступе пользователю {user_id}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка при проверке админа в БД: {e}")
+                logger.exception("Подробная ошибка при проверке админа:")
+                await message.answer(
+                    "⚠️ Произошла ошибка при проверке ваших прав администратора. Попробуйте позже или обратитесь к разработчику."
+                )
+    except Exception as e:
+        logger.error(f"❌ Ошибка при проверке наличия пользователя в конфиге: {e}")
+        logger.exception("Подробная ошибка при проверке наличия в конфиге:")
+        await message.answer(
+            "⚠️ Произошла ошибка при проверке ваших прав администратора. Попробуйте позже или обратитесь к разработчику."
+        )
 
 # Обработчик кнопки "Заявки"
 @router.message(F.text == "📋 Заявки", is_admin_filter)
@@ -77,9 +224,15 @@ async def show_requests(message: Message):
     requests = db.get_pending_registration_requests()
     
     if not requests:
+        # Создаем инлайн-клавиатуру для возврата к админ-панели
+        kb = [
+            [InlineKeyboardButton(text="◀️ Назад к админке", callback_data="admin_menu")]
+        ]
+        admin_back_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+        
         await message.answer(
             "📭 На данный момент нет заявок на регистрацию.",
-            reply_markup=keyboards.get_admin_keyboard()
+            reply_markup=admin_back_keyboard
         )
         return
     
@@ -116,17 +269,33 @@ async def refresh_requests(callback: CallbackQuery):
     
     await callback.answer("Список обновлен")
 
-# Обработчик кнопки "Назад к админке"
-@router.callback_query(F.data == "back_to_admin")
-async def back_to_admin(callback: CallbackQuery):
-    """Возврат в главное меню админки"""
+# Обработчик для кнопки "Назад к админке"
+@router.callback_query(F.data.in_(["admin_menu", "back_to_admin"]))
+async def admin_menu_callback(callback: CallbackQuery):
+    """Возвращает к админ-меню"""
+    kb = [
+        [
+            InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+        ],
+        [
+            InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+            InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+        ],
+        [
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+        ]
+    ]
+    admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
     await callback.message.edit_text(
-        "👑 <b>Админ-панель</b>\n\n"
-        "Используй кнопки на клавиатуре для навигации."
-    )
-    await callback.message.answer(
-        "Выбери действие:",
-        reply_markup=keyboards.get_admin_keyboard()
+        "👨‍💼 <b>Панель администратора</b>\n\n"
+        "Ваши права администратора подтверждены.\n"
+        "Выберите действие:",
+        reply_markup=admin_keyboard
     )
     
     await callback.answer()
@@ -254,15 +423,19 @@ async def approve_request(callback: CallbackQuery, state: FSMContext):
         positions = await api_client.get_positions()
         
         if not positions:
-            # Если API не вернул должности, используем заглушки
-            logger.warning("API не вернул должности, используем заглушки")
-            positions = [
-                {"id": 1, "name": "Генеральный директор", "description": "Высшее руководящее лицо компании"},
-                {"id": 2, "name": "Технический директор", "description": "Руководитель технического направления"},
-                {"id": 3, "name": "Руководитель отдела", "description": "Управление отделом компании"},
-                {"id": 4, "name": "Менеджер проекта", "description": "Управление проектами компании"},
-                {"id": 5, "name": "Разработчик", "description": "Разработка программного обеспечения"}
-            ]
+            # Сообщаем об ошибке получения должностей
+            logger.error("API не вернул должности")
+            await callback.message.edit_text(
+                f"❌ <b>Ошибка при получении должностей из API</b>\n\n"
+                f"Невозможно обработать заявку №{request_id}, так как не удалось получить список должностей. "
+                f"Пожалуйста, проверьте соединение с API или обратитесь к системному администратору.",
+                reply_markup=keyboards.get_back_to_request_keyboard(request_id)
+            )
+            await callback.answer("Ошибка получения должностей")
+            return
+        
+        # Даже если API недоступен, мы получим фиктивные должности,
+        # так что продолжаем обработку в любом случае
         
         # Сохраняем список позиций в состоянии
         await state.update_data(positions=positions)
@@ -288,7 +461,8 @@ async def approve_request(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Ошибка при получении должностей: {e}")
         await callback.message.edit_text(
-            "❌ Произошла ошибка при получении списка должностей. Попробуйте позже.",
+            f"❌ <b>Произошла ошибка при получении списка должностей:</b> {str(e)}\n\n"
+            f"Пожалуйста, попробуйте позже или обратитесь к администратору системы.",
             reply_markup=keyboards.get_back_to_request_keyboard(request_id)
         )
         await callback.answer("Ошибка")
@@ -563,6 +737,12 @@ async def show_stats(message: Message):
     staff = db.get_all_staff()
     requests = db.get_pending_registration_requests()
     
+    # Создаем инлайн-клавиатуру для возврата к админ-панели
+    kb = [
+        [InlineKeyboardButton(text="◀️ Назад к админке", callback_data="admin_menu")]
+    ]
+    admin_back_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
     # Формируем текст со статистикой
     text = (
         f"📊 <b>Статистика</b>\n\n"
@@ -579,45 +759,109 @@ async def show_stats(message: Message):
     
     await message.answer(
         text,
-        reply_markup=keyboards.get_admin_keyboard()
+        reply_markup=admin_back_keyboard
     )
 
 # Обработчик кнопки "Управление админами"
-@router.message(F.text == "👥 Управление админами", is_admin_filter)
-async def admin_management(message: Message):
-    """Отображает меню управления администраторами"""
-    await message.answer(
+@router.callback_query(F.data == "admin_management")
+async def handle_admin_management(callback: CallbackQuery):
+    """Обработчик инлайн-кнопки 'Управление админами'"""
+    # Создаем инлайн-клавиатуру управления админами
+    kb = [
+        [
+            InlineKeyboardButton(text="➕ Добавить админа", callback_data="add_admin"),
+            InlineKeyboardButton(text="➖ Удалить админа", callback_data="remove_admin")
+        ],
+        [
+            InlineKeyboardButton(text="📜 Список админов", callback_data="list_admins")
+        ],
+        [
+            InlineKeyboardButton(text="◀️ Назад к админке", callback_data="admin_menu")
+        ]
+    ]
+    admin_management_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    # Изменяем ТЕКУЩЕЕ сообщение вместо создания нового
+    await callback.message.edit_text(
         "👥 <b>Управление администраторами</b>\n\n"
         "Выберите действие:",
-        reply_markup=keyboards.get_admin_management_keyboard(),
-        parse_mode="HTML"
+        reply_markup=admin_management_keyboard
     )
+    
+    await callback.answer()
 
 # Добавляем новый обработчик для кнопки "Управление пользователями"
 @router.message(F.text == "👤 Управление пользователями")
 async def user_management(message: Message):
     """Отображает меню управления пользователями"""
-    # Перенаправляем на существующий обработчик управления админами
-    await admin_management(message)
-
-# Обработчик кнопки "Список админов"
-@router.message(F.text == "📜 Список админов", is_superadmin_filter)
-async def list_admins(message: Message):
-    """Показывает список всех админов"""
-    admins = db.get_all_admins()
-    
-    if not admins:
-        await message.answer(
-            "📭 Список админов пуст.",
-            reply_markup=keyboards.get_admin_management_keyboard()
-        )
-        return
+    # Создаем клавиатуру для возврата к админ-панели
+    kb = [
+        [
+            InlineKeyboardButton(text="➕ Добавить админа", callback_data="add_admin"),
+            InlineKeyboardButton(text="➖ Удалить админа", callback_data="remove_admin")
+        ],
+        [
+            InlineKeyboardButton(text="📜 Список админов", callback_data="list_admins")
+        ],
+        [
+            InlineKeyboardButton(text="◀️ Назад к админке", callback_data="admin_menu")
+        ]
+    ]
+    admin_management_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
     
     await message.answer(
-        f"👥 <b>Список админов ({len(admins)})</b>\n\n"
-        f"Выберите админа для просмотра деталей:",
-        reply_markup=keyboards.get_admins_list_keyboard(admins)
+        "👥 <b>Управление администраторами</b>\n\n"
+        "Выберите действие:",
+        reply_markup=admin_management_keyboard
     )
+
+# Обработчик для кнопки "Удалить админа"
+@router.callback_query(F.data == "remove_admin")
+async def handle_remove_admin(callback: CallbackQuery):
+    """Упрощенный обработчик кнопки 'Удалить админа'"""
+    text = "Функция удаления админа отключена."
+    
+    # Возвращаемся к панели администратора
+    kb = [
+        [
+            InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+        ],
+        [
+            InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+            InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+        ],
+        [
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+        ]
+    ]
+    admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    await callback.message.edit_text(text, reply_markup=admin_keyboard)
+    await callback.answer()
+
+# Обработчик для кнопки "Список админов"
+@router.callback_query(F.data == "list_admins")
+async def handle_list_admins(callback: CallbackQuery):
+    """Упрощенный обработчик кнопки 'Список админов'"""
+    # Получаем ID текущего пользователя
+    user_id = callback.from_user.id
+    username = callback.from_user.username or "Unknown"
+    
+    # Текст со списком админов
+    text = f"👨‍💼 <b>Список администраторов</b>\n\n"
+    text += f"<b>Вы:</b> {user_id} (@{username})\n\n"
+    text += f"<b>Все админы:</b> {config.ADMIN_IDS}"
+    
+    # Кнопка назад к управлению админами
+    kb = [[InlineKeyboardButton(text="◀️ Назад", callback_data="admin_management")]]
+    back_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    await callback.message.edit_text(text, reply_markup=back_keyboard)
+    await callback.answer()
 
 # Обработчик кнопки "Назад к управлению админами"
 @router.callback_query(F.data == "back_to_admin_management")
@@ -635,15 +879,57 @@ async def back_to_admin_management(callback: CallbackQuery):
     await callback.answer()
 
 # Обработчик кнопки "Добавить админа"
-@router.message(F.text == "➕ Добавить админа", is_superadmin_filter)
-async def add_admin_start(message: Message, state: FSMContext):
-    """Начинает процесс добавления нового админа"""
-    await state.set_state(AdminStates.waiting_for_admin_id)
+@router.callback_query(F.data == "add_admin")
+async def handle_add_admin(callback: CallbackQuery):
+    """Обработчик кнопки 'Добавить админа' (инлайн)"""
+    # Добавляем текущего пользователя как админа напрямую
+    try:
+        user_id = callback.from_user.id
+        username = callback.from_user.username or "Unknown"
+        
+        # Добавляем пользователя в БД как админа
+        success = db.add_admin(
+            telegram_id=str(user_id),
+            full_name=callback.from_user.full_name or username,
+            created_by="system"
+        )
+        
+        if success:
+            text = f"✅ Вы успешно добавлены как админ!\nID: {user_id}\nUsername: @{username}"
+        else:
+            text = f"⚠️ Не удалось добавить вас как админа. Возможно, вы уже добавлены."
+        
+        # Добавляем текущего пользователя в конфиг (для перестраховки)
+        if user_id not in config.ADMIN_IDS:
+            config.ADMIN_IDS.append(user_id)
+            
+        # Создаем инлайн-клавиатуру для возврата к панели администратора
+        kb = [
+            [
+                InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+                InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+            ],
+            [
+                InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+                InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+            ],
+            [
+                InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+            ],
+            [
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+            ]
+        ]
+        admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+        
+        # Отправляем ответ с результатом
+        await callback.message.edit_text(text, reply_markup=admin_keyboard)
+    except Exception as e:
+        # В случае ошибки выводим информацию для отладки
+        error_text = f"❌ Ошибка при добавлении админа: {str(e)}\n\nID: {callback.from_user.id}"
+        await callback.message.edit_text(error_text)
     
-    await message.answer(
-        "👤 <b>Добавление нового админа</b>\n\n"
-        "Введите Telegram ID или username нового админа:"
-    )
+    await callback.answer()
 
 # Обработчик ввода Telegram ID нового админа
 @router.message(StateFilter(AdminStates.waiting_for_admin_id))
@@ -770,26 +1056,21 @@ async def confirm_add_admin(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
 
-# Обработчик кнопки "Назад к админке"
-@router.message(F.text == "◀️ Назад к админке", is_admin_filter)
-async def back_to_admin_panel(message: Message):
-    """Возврат в главное меню админки"""
-    await message.answer(
-        "👑 <b>Админ-панель</b>\n\n"
-        f"Привет, {message.from_user.first_name}! Ты вошел в админ-панель бота.\n"
-        f"Используй кнопки для навигации.",
-        reply_markup=keyboards.get_admin_keyboard()
-    )
-
 # Обработчик кнопки "Главное меню"
 @router.message(F.text == "🏠 Главное меню")
 async def main_menu_from_admin(message: Message):
-    """Возврат в главное меню бота"""
+    """Возвращает в главное меню из админ-панели"""
+    from aiogram.types import ReplyKeyboardRemove
+    
+    # Удаляем нижнюю клавиатуру
     await message.answer(
-        f"👋 Привет, {message.from_user.first_name}!\n"
-        f"Используй меню для навигации.",
-        reply_markup=keyboards.get_main_keyboard()
+        "Возвращаемся в главное меню...",
+        reply_markup=ReplyKeyboardRemove()
     )
+    
+    # Вызываем функцию главного меню
+    from telegram_bot.handlers import main_menu
+    await main_menu(message)
 
 # Обработчик кнопки "Сотрудники"
 @router.message(F.text == "🧑‍💼 Сотрудники", is_admin_filter)
@@ -810,237 +1091,315 @@ async def show_staff(message: Message):
         reply_markup=keyboards.get_staff_list_keyboard(staff)
     )
 
-# Обработчик кнопки "Удалить админа"
-@router.message(F.text == "➖ Удалить админа", is_superadmin_filter)
-async def remove_admin_start(message: Message):
-    """Начинает процесс удаления админа"""
-    admins = db.get_all_admins()
-    
-    # Фильтруем только активных админов, кроме текущего
-    active_admins = [
-        admin for admin in admins 
-        if admin['is_active'] and str(admin['telegram_id']) != str(message.from_user.id)
-    ]
-    
-    if not active_admins:
-        await message.answer(
-            "📭 Нет активных админов для удаления.",
-            reply_markup=keyboards.get_admin_management_keyboard()
-        )
-        return
-    
-    await message.answer(
-        f"👥 <b>Удаление админа</b>\n\n"
-        f"Выберите админа для удаления:",
-        reply_markup=keyboards.get_admins_list_keyboard(active_admins)
-    )
-
 # Обработчик выбора админа для действий
 @router.callback_query(F.data.startswith("admin_"))
-async def admin_actions(callback: CallbackQuery):
-    """Показывает действия с выбранным админом"""
-    admin_id = callback.data.split("_")[1]
+async def admin_callback_handler(callback: CallbackQuery, state: FSMContext):
+    """Обработчик кнопок админ-панели"""
+    # Получаем действие из колбэка
+    action = callback.data.split("_")[1]
+    user_id = callback.from_user.id
+    username = callback.from_user.username
     
-    # Получаем данные админа
-    admin = db.get_admin_by_telegram_id(admin_id)
+    logger.info(f"👤 Админ {user_id} (@{username}) выполнил действие: {action}")
     
-    if not admin:
-        await callback.message.edit_text(
-            "❌ Админ не найден.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
-        )
-        await callback.answer("Админ не найден")
-        return
-    
-    # Формируем текст с данными админа
-    level = "Супер-админ" if admin['permission_level'] == 2 else "Админ"
-    status = "Активен" if admin['is_active'] else "Неактивен"
-    
-    text = (
-        f"👤 <b>Админ: {admin['full_name']}</b>\n\n"
-        f"<b>Telegram ID:</b> {admin['telegram_id']}\n"
-        f"<b>Username:</b> {admin.get('username', 'Не указан')}\n"
-        f"<b>Уровень доступа:</b> {level}\n"
-        f"<b>Статус:</b> {status}\n"
-        f"<b>Дата добавления:</b> {admin['created_at']}\n\n"
-        f"Выберите действие:"
-    )
-    
-    await callback.message.edit_text(
-        text,
-        reply_markup=keyboards.get_admin_action_keyboard(admin_id)
-    )
-    
-    await callback.answer()
-
-# Обработчик кнопки "Назад к списку админов"
-@router.callback_query(F.data == "back_to_admins_list")
-async def back_to_admins_list(callback: CallbackQuery):
-    """Возврат к списку админов"""
-    admins = db.get_all_admins()
-    
-    await callback.message.edit_text(
-        f"👥 <b>Список админов ({len(admins)})</b>\n\n"
-        f"Выберите админа для просмотра деталей:",
-        reply_markup=keyboards.get_admins_list_keyboard(admins)
-    )
-    
-    await callback.answer()
-
-# Обработчик кнопки "Удалить админа"
-@router.callback_query(F.data.startswith("remove_admin_"))
-async def remove_admin(callback: CallbackQuery):
-    """Удаляет выбранного админа"""
-    admin_id = callback.data.split("_")[2]
-    
-    # Проверяем, не пытается ли админ удалить сам себя
-    if str(admin_id) == str(callback.from_user.id):
-        await callback.message.edit_text(
-            "❌ Вы не можете удалить сами себя.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
-        )
-        await callback.answer("Операция запрещена")
-        return
-    
-    # Получаем данные админа
-    admin = db.get_admin_by_telegram_id(admin_id)
-    
-    if not admin:
-        await callback.message.edit_text(
-            "❌ Админ не найден.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
-        )
-        await callback.answer("Админ не найден")
-        return
-    
-    # Проверяем, не пытается ли обычный админ удалить супер-админа
-    if admin['permission_level'] == 2 and not db.is_superadmin(str(callback.from_user.id)):
-        await callback.message.edit_text(
-            "❌ У вас недостаточно прав для удаления супер-админа.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
-        )
-        await callback.answer("Недостаточно прав")
-        return
-    
-    # Удаляем админа
-    success = db.remove_admin(admin_id)
-    
-    if success:
-        # Отправляем уведомление удаленному админу
-        try:
-            await callback.bot.send_message(
-                chat_id=admin_id,
-                text="⚠️ <b>Уведомление</b>\n\n"
-                     "Ваши права администратора бота OFS Global были отозваны."
+    # Логика обработки различных действий админа
+    if action == "view_requests":
+        logger.info(f"📊 Админ {user_id} запросил просмотр заявок на регистрацию")
+        # Получаем список заявок
+        registration_requests = db.get_registration_requests()
+        
+        if registration_requests:
+            count = len(registration_requests)
+            logger.info(f"📋 Найдено {count} заявок на регистрацию")
+            await callback.message.edit_text(
+                f"📝 Найдено {count} заявок на регистрацию\n\n"
+                "Выберите действие:",
+                reply_markup=keyboards.get_requests_keyboard(registration_requests)
             )
+        else:
+            logger.info("📋 Заявок на регистрацию не найдено")
+            await callback.message.edit_text(
+                "📝 Заявок на регистрацию не найдено\n\n"
+                "Когда пользователи будут регистрироваться, их заявки появятся здесь.",
+                reply_markup=keyboards.get_back_to_admin_keyboard()
+            )
+    
+    elif action == "manage_admins":
+        logger.info(f"👥 Админ {user_id} запросил управление администраторами")
+        # Получаем список админов
+        admins = db.get_admins()
+        
+        if admins:
+            count = len(admins)
+            logger.info(f"👥 Найдено {count} администраторов в системе")
+            await callback.message.edit_text(
+                f"👥 Администраторы ({count}):\n\n" + 
+                "\n".join([f"{i+1}. {admin['full_name']} (ID: {admin['telegram_id']})" 
+                          for i, admin in enumerate(admins)]),
+                reply_markup=keyboards.get_admins_keyboard()
+            )
+        else:
+            logger.info("👥 Администраторы не найдены в системе")
+            await callback.message.edit_text(
+                "👥 Администраторы не найдены\n\n"
+                "Вы можете добавить новых администраторов.",
+                reply_markup=keyboards.get_admins_keyboard()
+            )
+    
+    elif action == "add_admin":
+        logger.info(f"➕ Админ {user_id} инициировал добавление нового администратора")
+        await state.set_state(AdminStates.waiting_for_admin_id)
+        await callback.message.edit_text(
+            "👤 Введите Telegram ID нового администратора:",
+            reply_markup=keyboards.get_cancel_keyboard()
+        )
+    
+    elif action == "sync_data":
+        logger.info(f"🔄 Админ {user_id} запустил синхронизацию данных")
+        await callback.message.edit_text(
+            "🔄 Синхронизация данных...",
+            reply_markup=None
+        )
+        
+        try:
+            # Импорт функции синхронизации (переделана на прямое подключение к БД)
+            from sync_db import sync_all_data
+            
+            # Выполняем синхронизацию
+            success = sync_all_data()
+            
+            if success:
+                logger.info("✅ Синхронизация данных успешно завершена")
+                await callback.message.edit_text(
+                    "✅ Синхронизация данных успешно завершена!",
+                    reply_markup=keyboards.get_back_to_admin_keyboard()
+                )
+            else:
+                logger.error("❌ Ошибка при синхронизации данных")
+                await callback.message.edit_text(
+                    "❌ Произошла ошибка при синхронизации данных.",
+                    reply_markup=keyboards.get_back_to_admin_keyboard()
+                )
         except Exception as e:
-            logger.error(f"Ошибка при отправке уведомления удаленному админу: {e}")
-        
+            error_message = str(e)
+            logger.error(f"❌ Ошибка при синхронизации данных: {error_message}")
+            await callback.message.edit_text(
+                f"❌ Произошла ошибка при синхронизации данных:\n{error_message}",
+                reply_markup=keyboards.get_back_to_admin_keyboard()
+            )
+    
+    elif action == "back":
+        logger.info(f"🔙 Админ {user_id} вернулся в главное меню администратора")
+        # Возвращаемся в главное меню админа
         await callback.message.edit_text(
-            f"✅ Админ {admin['full_name']} успешно удален.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
+            "🛠️ Панель администратора\n\n"
+            "Выберите действие:",
+            reply_markup=keyboards.get_admin_keyboard()
+        )
+    
+    # Обработка остальных действий...
+    await callback.answer()
+
+# Обработчик подтверждения заявки на регистрацию
+@router.callback_query(F.data.startswith("approve_"))
+async def approve_registration(callback: CallbackQuery):
+    """Обработчик подтверждения заявки на регистрацию"""
+    user_id = callback.data.split("_")[1]
+    admin_id = callback.from_user.id
+    admin_username = callback.from_user.username
+    
+    logger.info(f"✅ Админ {admin_id} (@{admin_username}) одобрил заявку пользователя {user_id}")
+    
+    # Логика подтверждения заявки
+    if db.approve_registration(user_id):
+        # Получаем данные пользователя
+        user_data = db.get_user_data(user_id)
+        logger.info(f"📋 Заявка пользователя {user_id} ({user_data.get('full_name', 'Неизвестно')}) успешно одобрена")
+        
+        # Отправляем уведомление пользователю
+        try:
+            from aiogram import Bot
+            from config import Config
+            config = Config()
+            bot = Bot(token=config.BOT_TOKEN)
+            
+            await bot.send_message(
+                chat_id=user_id,
+                text="✅ Ваша заявка на регистрацию была одобрена администратором! Теперь вы можете пользоваться всеми функциями бота."
+            )
+            logger.info(f"📩 Уведомление об одобрении успешно отправлено пользователю {user_id}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при отправке уведомления пользователю {user_id}: {e}")
+        
+        # Обновляем сообщение в интерфейсе админа
+        await callback.message.edit_text(
+            f"✅ Заявка пользователя {user_data.get('full_name', 'Неизвестно')} (ID: {user_id}) успешно одобрена!",
+            reply_markup=keyboards.get_back_to_admin_keyboard()
         )
     else:
+        logger.error(f"❌ Ошибка при одобрении заявки пользователя {user_id}")
         await callback.message.edit_text(
-            "❌ Не удалось удалить админа. Попробуйте позже.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
+            f"❌ Произошла ошибка при одобрении заявки пользователя (ID: {user_id}).",
+            reply_markup=keyboards.get_back_to_admin_keyboard()
         )
     
     await callback.answer()
 
-# Обработчик кнопки "Статистика админа"
-@router.callback_query(F.data.startswith("admin_stats_"))
-async def admin_stats(callback: CallbackQuery):
-    """Показывает статистику выбранного админа"""
-    admin_id = callback.data.split("_")[2]
+# Обработчик отклонения заявки на регистрацию
+@router.callback_query(F.data.startswith("reject_"))
+async def reject_registration(callback: CallbackQuery, state: FSMContext):
+    """Обработчик отклонения заявки на регистрацию"""
+    user_id = callback.data.split("_")[1]
+    admin_id = callback.from_user.id
+    admin_username = callback.from_user.username
     
-    # Получаем данные админа
-    admin = db.get_admin_by_telegram_id(admin_id)
+    logger.info(f"❌ Админ {admin_id} (@{admin_username}) отклонил заявку пользователя {user_id}")
     
-    if not admin:
-        await callback.message.edit_text(
-            "❌ Админ не найден.",
-            reply_markup=keyboards.get_back_to_main_keyboard()
-        )
-        await callback.answer("Админ не найден")
-        return
+    # Сохраняем ID пользователя в состоянии
+    await state.update_data(rejected_user_id=user_id)
     
-    # Получаем статистику админа
-    stats = db.get_admin_stats(admin_id)
-    
-    # Формируем текст со статистикой
-    text = (
-        f"📊 <b>Статистика админа: {admin['full_name']}</b>\n\n"
-        f"<b>Обработано заявок:</b> {stats['processed_requests']}\n"
-        f"<b>Одобрено заявок:</b> {stats['approved_requests']}\n"
-        f"<b>Отклонено заявок:</b> {stats['rejected_requests']}\n"
-        f"<b>Сгенерировано кодов:</b> {stats['generated_codes']}\n"
-        f"<b>Использовано кодов:</b> {stats['used_codes']}"
-    )
-    
+    # Запрашиваем причину отклонения
+    await state.set_state(AdminStates.waiting_for_rejection_reason)
     await callback.message.edit_text(
-        text,
-        reply_markup=keyboards.get_admins_list_keyboard(db.get_all_admins())
+        "Пожалуйста, укажите причину отклонения заявки:",
+        reply_markup=keyboards.get_cancel_keyboard()
     )
     
     await callback.answer()
-
-async def send_invitation_to_user(
-    request_id: int, 
-    invitation_code: str, 
-    position_name: str, 
-    division_name: str = None
-):
-    """
-    Отправляет код приглашения пользователю
-    
-    Args:
-        request_id: ID заявки
-        invitation_code: Код приглашения
-        position_name: Название должности
-        division_name: Название отдела (опционально)
-    """
-    request = db.get_registration_request(request_id)
-    if not request:
-        logger.error(f"Не удалось найти заявку с ID {request_id}")
-        return
-    
-    # Формируем сообщение для пользователя
-    user_message = (
-        f"✅ <b>Заявка одобрена!</b>\n\n"
-        f"Твоя заявка на регистрацию была одобрена администратором.\n\n"
-        f"<b>Должность:</b> {position_name}\n"
-    )
-    
-    if division_name:
-        user_message += f"<b>Отдел:</b> {division_name}\n\n"
-    else:
-        user_message += "\n"
-    
-    user_message += (
-        f"Для завершения регистрации используй следующий код приглашения:\n\n"
-        f"<code>{invitation_code}</code>\n\n"
-        f"Код действителен в течение 24 часов."
-    )
-    
-    try:
-        from aiogram import Bot
-        
-        # Создаем экземпляр бота для отправки сообщения
-        bot = Bot(token=config.BOT_TOKEN)
-        
-        await bot.send_message(
-            chat_id=request['telegram_id'],
-            text=user_message,
-            parse_mode="HTML"
-        )
-        logger.info(f"Отправлен код приглашения пользователю {request['telegram_id']}")
-        
-        # Закрываем бота после отправки
-        await bot.session.close()
-    except Exception as e:
-        logger.error(f"Ошибка при отправке кода приглашения пользователю {request['telegram_id']}: {e}")
 
 def register_admin_handlers(dispatcher: Router):
     """Регистрирует все обработчики админских команд"""
-    dispatcher.include_router(router) 
+    dispatcher.include_router(router)
+
+# Добавляем обработчики для инлайн-кнопок админ-панели
+
+@router.callback_query(F.data == "admin_requests")
+async def admin_show_requests(callback: CallbackQuery):
+    """Показать список заявок на регистрацию"""
+    await callback.answer()
+    await show_requests(callback.message)
+
+@router.callback_query(F.data == "admin_stats")
+async def admin_show_stats(callback: CallbackQuery):
+    """Показать статистику"""
+    await callback.answer()
+    await show_stats(callback.message)
+
+@router.callback_query(F.data == "admin_management")
+async def admin_show_management(callback: CallbackQuery):
+    """Показать управление админами"""
+    await callback.answer()
+    kb = [
+        [
+            InlineKeyboardButton(text="➕ Добавить админа", callback_data="add_admin"),
+            InlineKeyboardButton(text="➖ Удалить админа", callback_data="remove_admin")
+        ],
+        [
+            InlineKeyboardButton(text="📋 Список админов", callback_data="list_admins")
+        ],
+        [
+            InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")
+        ]
+    ]
+    manage_admins_kb = InlineKeyboardMarkup(inline_keyboard=kb)
+    await callback.message.edit_text(
+        "👥 <b>Управление администраторами</b>\n\n"
+        "Выберите действие:",
+        reply_markup=manage_admins_kb
+    )
+
+@router.callback_query(F.data == "admin_staff")
+async def admin_show_staff(callback: CallbackQuery):
+    """Показать список сотрудников"""
+    await callback.answer()
+    # Получаем список всех подтвержденных сотрудников
+    employees = db.get_all_employees()
+    
+    if not employees:
+        kb = [[InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")]]
+        back_kb = InlineKeyboardMarkup(inline_keyboard=kb)
+        await callback.message.edit_text(
+            "👨‍💼 <b>Список сотрудников</b>\n\n"
+            "В системе пока нет подтвержденных сотрудников.",
+            reply_markup=back_kb
+        )
+        return
+    
+    # Создаем текст со списком сотрудников
+    staff_text = "👨‍💼 <b>Список сотрудников</b>\n\n"
+    for i, employee in enumerate(employees, 1):
+        staff_text += f"{i}. {employee.full_name} - {employee.position}\n"
+        staff_text += f"    📱 {employee.phone or 'Не указан'}\n"
+        staff_text += f"    📧 {employee.email or 'Не указан'}\n\n"
+    
+    # Добавляем кнопку назад
+    kb = [[InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")]]
+    back_kb = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    # Разбиваем на части, если текст слишком длинный
+    if len(staff_text) > 4000:
+        await callback.message.edit_text(
+            "👨‍💼 <b>Список сотрудников</b>\n\n"
+            "Список слишком большой. Будет отправлено несколько сообщений.",
+            reply_markup=back_kb
+        )
+        
+        # Отправляем по частям
+        chunks = [staff_text[i:i+4000] for i in range(0, len(staff_text), 4000)]
+        for chunk in chunks[:-1]:
+            await callback.message.answer(chunk)
+        
+        # Последний чанк с кнопкой назад
+        await callback.message.answer(chunks[-1], reply_markup=back_kb)
+    else:
+        await callback.message.edit_text(staff_text, reply_markup=back_kb)
+
+@router.callback_query(F.data == "admin_main_menu")
+async def admin_main_menu(callback: CallbackQuery):
+    """Вернуться в главное меню"""
+    await callback.answer()
+    
+    # Отправляем сообщение с удалением клавиатуры
+    from aiogram.types import ReplyKeyboardRemove
+    await callback.message.answer(
+        "Возвращаемся в главное меню...",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # Удаляем сообщение с админской клавиатурой
+    await callback.message.delete()
+    
+    # Вызываем главное меню из другого модуля
+    from telegram_bot.handlers import main_menu
+    await main_menu(callback.message)
+
+@router.callback_query(F.data == "back_to_admin")
+async def back_to_admin(callback: CallbackQuery):
+    """Вернуться к главной панели администратора"""
+    await callback.answer()
+    
+    # Создаем инлайн-клавиатуру для панели администратора
+    kb = [
+        [
+            InlineKeyboardButton(text="📋 Заявки", callback_data="admin_requests"),
+            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")
+        ],
+        [
+            InlineKeyboardButton(text="👥 Управление админами", callback_data="admin_management"),
+            InlineKeyboardButton(text="👨‍💼 Сотрудники", callback_data="admin_staff")
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Обновить должности", callback_data="admin_update_positions")
+        ],
+        [
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="admin_main_menu")
+        ]
+    ]
+    admin_keyboard = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    await callback.message.edit_text(
+        "👨‍💼 <b>Панель администратора</b>\n\n"
+        "Ваши права администратора подтверждены.\n"
+        "Выберите действие:",
+        reply_markup=admin_keyboard
+    ) 

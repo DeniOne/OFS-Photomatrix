@@ -1,6 +1,16 @@
 import { User } from './user';
 import { Position } from './position';
 
+// Интерфейс, описывающий данные должности, возвращаемые API в массиве positions
+export interface StaffPositionInfo {
+  id: number;
+  staff_id: number;
+  position_id: number;
+  is_primary: boolean;
+  position_name: string | null; // Используем это поле
+  // start_date, end_date, created_at, updated_at можно добавить, если они нужны на фронте
+}
+
 export interface Staff {
   id: number;
   first_name: string;
@@ -10,26 +20,21 @@ export interface Staff {
   phone?: string | null;
   hire_date?: string | null; // ISO формат даты
   user_id?: number | null;
+  organization_id?: number | null; // Добавляем organization_id
   photo_path?: string | null;
   document_paths?: Record<string, string> | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  user?: User;
-  staff_positions?: StaffPosition[];
-  organization_name?: string | null; // Название организации
+  user?: User | null; // Пользователь может быть null
+  positions?: StaffPositionInfo[]; // Меняем staff_positions на positions и используем новый тип
+  organization_name?: string | null; 
 }
 
-export interface StaffPosition {
-  id: number;
-  staff_id: number;
+// Интерфейс для создания должности при создании/обновлении сотрудника
+export interface StaffPositionCreateData {
   position_id: number;
   is_primary: boolean;
-  start_date?: string | null;
-  end_date?: string | null;
-  created_at: string;
-  updated_at: string;
-  position?: Position;
 }
 
 export interface StaffCreate {
@@ -39,15 +44,11 @@ export interface StaffCreate {
   email?: string;
   phone?: string;
   hire_date?: string;
-  user_id?: number;
-  photo_path?: string;
-  document_paths?: Record<string, string>;
+  organization_id?: number;
   is_active?: boolean;
-  create_user?: boolean; // Флаг для создания связанного пользователя
-  position_id?: number;  // ID должности
-  organization_id?: number;  // ID организации (юрлица)
-  location_id?: number;  // ID локации
-  is_primary_position?: boolean;  // Является ли должность основной
+  positions?: StaffPositionCreateData[]; // Используем массив должностей
+  create_user?: boolean; 
+  password?: string; // Пароль опционален, только если create_user=true
 }
 
 export interface StaffCreateResponse extends Staff {
@@ -61,19 +62,11 @@ export interface StaffUpdate {
   email?: string;
   phone?: string;
   hire_date?: string;
-  user_id?: number;
-  photo_path?: string;
-  document_paths?: Record<string, string>;
+  organization_id?: number; // Можно обновлять организацию
   is_active?: boolean;
-  create_user?: boolean;
-  position_id?: number;  // ID должности
-  organization_id?: number;  // ID организации (юрлица)
-  location_id?: number;  // ID локации
-  is_primary_position?: boolean;  // Является ли должность основной
-}
-
-export interface StaffWithPositions extends Staff {
-  positions: Position[];
+  positions?: StaffPositionCreateData[]; // Можно обновлять должности
+  // user_id, create_user, password обычно не обновляются этим методом
+  // Если нужно обновить user_id или создать/изменить пользователя, нужны отдельные поля/логика
 }
 
 // Интерфейс для RocketChat данных сотрудника

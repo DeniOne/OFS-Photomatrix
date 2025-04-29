@@ -1,0 +1,172 @@
+{
+  "sections": [
+    {
+      "id": 4,
+      "name": "Отдел персонала",
+      "code": "SEC_HR",
+      "division_id": 1,
+      "description": "Отдел Отдел персонала",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "name": "Отдел продаж",
+      "code": "SEC_SALES",
+      "division_id": 2,
+      "description": "Отдел Отдел продаж",
+      "is_active": true
+    },
+    {
+      "id": 5,
+      "name": "Отдел фотографов",
+      "code": "SEC_PHOTO",
+      "division_id": 3,
+      "description": "Отдел Отдел фотографов",
+      "is_active": true
+    },
+    {
+      "id": 6,
+      "name": "Отдел коммуникаций",
+      "code": "SEC_COMM",
+      "division_id": 1,
+      "description": "Отдел Отдел коммуникаций",
+      "is_active": true
+    },
+    {
+      "id": 7,
+      "name": "Отдел защиты системы управления",
+      "code": "SEC_SECURE",
+      "division_id": 4,
+      "description": "Отдел Отдел защиты системы управления",
+      "is_active": true
+    },
+    {
+      "id": 8,
+      "name": "Отдел маркетинга",
+      "code": "SEC_MARKET",
+      "division_id": 2,
+      "description": "Отдел Отдел маркетинга",
+      "is_active": true
+    },
+    {
+      "id": 9,
+      "name": "Отдел Производства товарной продукции",
+      "code": "SEC_PROD",
+      "division_id": 3,
+      "description": "Отдел Отдел Производства товарной продукции",
+      "is_active": true
+    },
+    {
+      "id": 10,
+      "name": "Отдел доходов",
+      "code": "SEC_INCOME",
+      "division_id": 4,
+      "description": "Отдел Отдел доходов",
+      "is_active": true
+    },
+    {
+      "id": 11,
+      "name": "Отдел расходов",
+      "code": "SEC_EXPEND",
+      "division_id": 4,
+      "description": "Отдел Отдел расходов",
+      "is_active": true
+    },
+    {
+      "id": 12,
+      "name": "Отдел учёта",
+      "code": "SEC_ACCOUNT",
+      "division_id": 4,
+      "description": "Отдел Отдел учёта",
+      "is_active": true
+    },
+    {
+      "id": 13,
+      "name": "Отдел разработка платформы ИТ",
+      "code": "SEC_IT",
+      "division_id": 5,
+      "description": "Отдел Отдел разработка платформы ИТ",
+      "is_active": true
+    },
+    {
+      "id": 14,
+      "name": "Отдел складского хозяйства",
+      "code": "SEC_STORAGE",
+      "division_id": 3,
+      "description": "Отдел Отдел складского хозяйства",
+      "is_active": true
+    },
+    {
+      "id": 15,
+      "name": "Отдел качества",
+      "code": "SEC_QUALITY",
+      "division_id": 3,
+      "description": "Отдел Отдел качества",
+      "is_active": true
+    },
+    {
+      "id": 16,
+      "name": "Отдел корпоративного обучения",
+      "code": "SEC_LEARN",
+      "division_id": 1,
+      "description": "Отдел Отдел корпоративного обучения",
+      "is_active": true
+    },
+    {
+      "id": 17,
+      "name": "Отдел улучшений",
+      "code": "SEC_IMPROVE",
+      "division_id": 1,
+      "description": "Отдел Отдел улучшений",
+      "is_active": true
+    },
+    {
+      "id": 18,
+      "name": "Отдел по PR и построению брэнда",
+      "code": "SEC_PR",
+      "division_id": 2,
+      "description": "Отдел Отдел по PR и построению брэнда",
+      "is_active": true
+    },
+    {
+      "id": 19,
+      "name": "Отдел вводных продуктов",
+      "code": "SEC_INTRO",
+      "division_id": 2,
+      "description": "Отдел Отдел вводных продуктов",
+      "is_active": true
+    },
+    {
+      "id": 20,
+      "name": "Отдел новых партнёров",
+      "code": "SEC_PARTNERS",
+      "division_id": 2,
+      "description": "Отдел Отдел новых партнёров",
+      "is_active": true
+    },
+    {
+      "id": 21,
+      "name": "Отдел стратегическое управление",
+      "code": "SEC_STRATEGY",
+      "division_id": 5,
+      "description": "Отдел Отдел стратегическое управление",
+      "is_active": true
+    },
+    {
+      "id": 22,
+      "name": "Отдел безопасности",
+      "code": "SEC_SAFETY",
+      "division_id": 5,
+      "description": "Отдел Отдел безопасности",
+      "is_active": true
+    },
+    {
+      "id": 23,
+      "name": "Отдел операционное управление",
+      "code": "SEC_OPER",
+      "division_id": 5,
+      "description": "Отдел Отдел операционное управление",
+      "is_active": true
+    }
+  ]
+}

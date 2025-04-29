@@ -21,9 +21,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         result = await db.execute(query)
         return result.scalars().first()
 
-    async def get_by_activation_code(self, db: AsyncSession, *, code: str) -> Optional[User]:
+    async def get_by_activation_code(self, db: AsyncSession, *, activation_code: str) -> Optional[User]:
         """Получить пользователя по коду активации"""
-        query = select(User).filter(User.activation_code == code)
+        query = select(User).filter(User.activation_code == activation_code)
         result = await db.execute(query)
         return result.scalars().first()
     
@@ -51,7 +51,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             # Генерируем уникальный код активации
             while True:
                 activation_code = generate_activation_code()
-                existing_user = await self.get_by_activation_code(db=db, code=activation_code)
+                existing_user = await self.get_by_activation_code(db=db, activation_code=activation_code)
                 if not existing_user:
                     break
         

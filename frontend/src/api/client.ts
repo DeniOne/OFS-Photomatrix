@@ -10,7 +10,7 @@ console.log("API клиент настроен на URL:", API_URL);
 
 // Создание экземпляра Axios с базовыми настройками
 export const api: AxiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL + '/api/v1',
   timeout: DEFAULT_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
@@ -97,6 +97,14 @@ const handleApiError = (error: AxiosError) => {
       break;
     case 404:
       message = 'Запрашиваемый ресурс не найден.';
+      break;
+    case 409:
+      const conflictDetail = (error.response.data as any)?.detail;
+      if (conflictDetail) {
+        message = String(conflictDetail);
+      } else {
+        message = 'Операция не может быть выполнена из-за конфликта со связанными данными.';
+      }
       break;
     case 422:
       const validationErrors = (error.response.data as any)?.detail;

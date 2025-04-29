@@ -4,7 +4,7 @@ from typing import Dict, Union, Any, Optional
 
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
 from database import BotDatabase
@@ -16,7 +16,11 @@ from config import Config
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -73,30 +77,46 @@ async def cmd_start(message: Message):
         )
         
         # Устанавливаем состояние ожидания ввода кода
-        await RegistrationStates.waiting_for_code.set(message)
+        await message.bot.set_state(message.from_user.id, RegistrationStates.waiting_for_code, message.chat.id)
         return
     
-    # Начинаем процесс регистрации
+    # Начинаем процесс регистрации - используем инлайн клавиатуру вместо обычной клавиатуры
+    
+    # Сначала удаляем нижнюю клавиатуру
     await message.answer(
-        f"👋 Привет, {message.from_user.first_name}!\n\n"
+        f"👋 Привет, {message.from_user.first_name}!",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # Создаем инлайн-клавиатуру
+    kb = [
+        [InlineKeyboardButton(text="📝 Зарегистрироваться", callback_data="start_registration")],
+        [InlineKeyboardButton(text="🔑 У меня есть код", callback_data="have_code")],
+        [InlineKeyboardButton(text="🔍 Проверить статус", callback_data="check_status")],
+        [InlineKeyboardButton(text="ℹ️ О боте", callback_data="about_bot")],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="show_help")]
+    ]
+    inline_kb = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    await message.answer(
         f"Добро пожаловать в бот OFS Global для регистрации сотрудников.\n\n"
         f"Для начала процесса регистрации, пожалуйста, выберите вариант ниже:",
-        reply_markup=keyboards.get_registration_start_keyboard()
+        reply_markup=inline_kb
     )
 
-# Обработчик кнопки "Зарегистрироваться"
-@router.message(F.text == "📝 Зарегистрироваться")
-async def registration_start(message: Message, state: FSMContext):
-    """Начинает процесс регистрации"""
-    user_id = str(message.from_user.id)
+@router.callback_query(F.data == "start_registration")
+async def callback_registration_start(callback: CallbackQuery, state: FSMContext):
+    """Начинает процесс регистрации через инлайн-кнопку"""
+    await callback.answer()
+    
+    user_id = str(callback.from_user.id)
     
     # Проверяем, зарегистрирован ли пользователь
     staff = db.get_employee_by_telegram_id(user_id)
     
     if staff:
-        await message.answer(
-            "✅ Ты уже зарегистрирован в системе как сотрудник.",
-            reply_markup=keyboards.get_main_keyboard()
+        await callback.message.edit_text(
+            "✅ Ты уже зарегистрирован в системе как сотрудник."
         )
         return
     
@@ -104,10 +124,9 @@ async def registration_start(message: Message, state: FSMContext):
     pending_request = db.get_pending_request_by_telegram_id(user_id)
     
     if pending_request:
-        await message.answer(
+        await callback.message.edit_text(
             "⏳ Твоя заявка на регистрацию уже отправлена и ожидает рассмотрения администратором.\n"
-            "Пожалуйста, дождись ответа.",
-            reply_markup=keyboards.get_main_keyboard()
+            "Пожалуйста, дождись ответа."
         )
         return
     
@@ -115,10 +134,9 @@ async def registration_start(message: Message, state: FSMContext):
     invitation_code = db.get_active_invitation_code(user_id)
     
     if invitation_code:
-        await message.answer(
+        await callback.message.edit_text(
             "👨‍💼 Для тебя уже был сгенерирован код приглашения.\n"
-            "Пожалуйста, введи его для завершения регистрации:",
-            reply_markup=keyboards.get_reset_keyboard()
+            "Пожалуйста, введи его для завершения регистрации:"
         )
         
         # Устанавливаем состояние ожидания ввода кода
@@ -129,290 +147,128 @@ async def registration_start(message: Message, state: FSMContext):
     await state.update_data(telegram_id=user_id)
     
     # Если у пользователя есть username, сохраняем его
-    if message.from_user.username:
-        await state.update_data(telegram_username=message.from_user.username)
+    if callback.from_user.username:
+        await state.update_data(telegram_username=callback.from_user.username)
     
     # Сохраняем полное имя пользователя из Telegram
-    full_name = f"{message.from_user.first_name}"
-    if message.from_user.last_name:
-        full_name += f" {message.from_user.last_name}"
+    full_name = f"{callback.from_user.first_name}"
+    if callback.from_user.last_name:
+        full_name += f" {callback.from_user.last_name}"
     
     await state.update_data(user_full_name=full_name)
     
     # Переходим к запросу подтверждения имени
     await state.set_state(RegistrationStates.waiting_for_name_confirmation)
     
-    await message.answer(
+    # Создаем инлайн-клавиатуру для подтверждения имени
+    kb = [
+        [
+            InlineKeyboardButton(text="✅ Да", callback_data="confirm_name"),
+            InlineKeyboardButton(text="❌ Нет", callback_data="reject_name")
+        ]
+    ]
+    confirmation_kb = InlineKeyboardMarkup(inline_keyboard=kb)
+    
+    await callback.message.edit_text(
         f"👤 Твое имя в Telegram: <b>{full_name}</b>\n\n"
         f"Использовать это имя для регистрации?",
-        reply_markup=keyboards.get_yes_no_keyboard()
+        reply_markup=confirmation_kb
     )
 
-# Обработчик подтверждения имени
-@router.message(StateFilter(RegistrationStates.waiting_for_name_confirmation), F.text.in_(["✅ Да", "❌ Нет"]))
-async def process_name_confirmation(message: Message, state: FSMContext):
-    """Обрабатывает подтверждение имени пользователя"""
-    if message.text == "✅ Да":
-        # Имя подтверждено, переходим к вводу должности
-        await state.set_state(RegistrationStates.waiting_for_position)
-        
-        await message.answer(
-            "👔 Пожалуйста, укажи свою должность или примерную должность в компании:",
-            reply_markup=keyboards.get_reset_keyboard()
-        )
-    else:
-        # Пользователь хочет ввести другое имя
-        await state.set_state(RegistrationStates.waiting_for_name)
-        
-        await message.answer(
-            "👤 Пожалуйста, введи свое полное имя (ФИО):",
-            reply_markup=keyboards.get_reset_keyboard()
-        )
+@router.callback_query(F.data == "confirm_name", StateFilter(RegistrationStates.waiting_for_name_confirmation))
+async def callback_confirm_name(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение имени через инлайн-кнопку"""
+    await callback.answer()
+    
+    # Имя подтверждено, переходим к выбору организации
+    await state.set_state(RegistrationStates.waiting_for_organization)
+    
+    # Получаем список организаций из API
+    organizations = await api_client.get_organizations()
+    
+    await callback.message.edit_text(
+        "🏢 Выберите организацию, в которой вы работаете:",
+        reply_markup=keyboards.get_organizations_keyboard(organizations)
+    )
 
-# Обработчик ввода имени
-@router.message(StateFilter(RegistrationStates.waiting_for_name))
-async def process_name(message: Message, state: FSMContext):
-    """Обрабатывает ввод имени пользователя"""
-    name = message.text.strip()
+@router.callback_query(F.data.startswith("org_"), StateFilter(RegistrationStates.waiting_for_organization))
+async def process_organization_selection(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора организации"""
+    await callback.answer()
     
-    if not name:
-        await message.answer("❌ Имя не может быть пустым. Пожалуйста, введи свое имя:")
-        return
+    # Получаем ID организации из callback.data
+    organization_id = int(callback.data.split("_")[1])
     
-    # Проверяем формат имени (должно содержать хотя бы два слова)
-    if len(name.split()) < 2:
-        await message.answer(
-            "⚠️ Пожалуйста, введи свое полное имя (Фамилия Имя):",
-            reply_markup=keyboards.get_reset_keyboard()
+    # Получаем список организаций для поиска выбранной
+    organizations = await api_client.get_organizations()
+    
+    # Ищем выбранную организацию
+    selected_organization = None
+    for org in organizations:
+        if org.get('id') == organization_id:
+            selected_organization = org
+            break
+    
+    if not selected_organization:
+        await callback.message.edit_text(
+            "❌ Организация не найдена. Пожалуйста, попробуйте снова."
         )
         return
     
-    # Сохраняем имя в состоянии
-    await state.update_data(user_full_name=name)
+    # Сохраняем выбранную организацию в состоянии
+    await state.update_data(
+        organization_id=organization_id,
+        organization_name=selected_organization.get('name', 'Неизвестная организация')
+    )
     
-    # Переходим к вводу должности
+    # Переходим к вводу должности (текстом)
     await state.set_state(RegistrationStates.waiting_for_position)
     
-    await message.answer(
-        "👔 Пожалуйста, укажи свою должность или примерную должность в компании:",
-        reply_markup=keyboards.get_reset_keyboard()
-    )
-
-# Обработчик ввода должности
-@router.message(StateFilter(RegistrationStates.waiting_for_position))
-async def process_position(message: Message, state: FSMContext):
-    """Обрабатывает ввод должности"""
-    position = message.text.strip()
-    
-    if not position:
-        await message.answer("❌ Должность не может быть пустой. Пожалуйста, укажи свою должность:")
-        return
-    
-    # Сохраняем должность в состоянии
-    await state.update_data(approximate_position=position)
-    
-    # Переходим к подтверждению всех данных
-    await state.set_state(RegistrationStates.waiting_for_request_confirmation)
-    
-    # Получаем все данные из состояния
-    data = await state.get_data()
-    
-    # Формируем текст с данными для подтверждения
-    text = (
-        f"📝 <b>Данные для регистрации:</b>\n\n"
-        f"<b>Имя:</b> {data['user_full_name']}\n"
-        f"<b>Должность:</b> {data['approximate_position']}\n\n"
-        f"Подтверди отправку заявки на регистрацию:"
-    )
-    
-    await message.answer(
-        text,
-        reply_markup=keyboards.get_confirm_keyboard()
-    )
-
-# Обработчик подтверждения запроса на регистрацию
-@router.callback_query(StateFilter(RegistrationStates.waiting_for_request_confirmation))
-async def process_request_confirmation(callback: CallbackQuery, state: FSMContext):
-    """Обрабатывает подтверждение запроса на регистрацию"""
-    action = callback.data
-    
-    if action not in ["confirm", "cancel"]:
-        await callback.answer("Неизвестное действие")
-        return
-    
-    if action == "cancel":
-        # Пользователь отменил запрос
-        await state.clear()
-        
-        await callback.message.edit_text(
-            "❌ Запрос на регистрацию отменен.\n\n"
-            "Ты можешь начать заново, нажав на кнопку 'Зарегистрироваться'."
-        )
-        
-        await callback.message.answer(
-            "Главное меню:",
-            reply_markup=keyboards.get_main_keyboard()
-        )
-        
-        await callback.answer()
-        return
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    
-    # Создаем запрос на регистрацию в локальной БД
-    request_data = {
-        'telegram_id': data.get('telegram_id', ''),
-        'telegram_username': data.get('telegram_username', ''),
-        'user_full_name': data.get('user_full_name', ''),
-        'approximate_position': data.get('approximate_position', '')
-    }
-    
-    # Сохраняем заявку в локальной БД
-    request_id = db.create_registration_request(request_data=request_data)
-    
-    if not request_id:
-        await callback.message.edit_text(
-            "❌ <b>Ошибка!</b>\n\n"
-            "К сожалению, произошла ошибка при создании заявки. Пожалуйста, попробуй позже."
-        )
-        
-        await callback.message.answer(
-            "Главное меню:",
-            reply_markup=keyboards.get_main_keyboard()
-        )
-        
-        await callback.answer()
-        await state.clear()
-        return
-    
-    # Очищаем состояние
-    await state.clear()
-    
-    # Пытаемся отправить запрос в API для предварительной проверки
-    try:
-        # Адаптируем данные для API, используя как staff вместо staff
-        api_data = {
-            'name': request_data['user_full_name'],
-            'telegram_id': request_data['telegram_id'],
-            'email': request_data.get('email', ''),
-            'phone': request_data.get('phone', ''),
-            'position': request_data.get('position', ''),
-            'division': request_data.get('division', '')
-        }
-        
-        # Используем новый метод для создания персонала
-        await api_client.create_staff(api_data)
-        logger.info(f"Предварительная проверка регистрации через API: {api_data}")
-    except Exception as e:
-        logger.error(f"Ошибка при предварительной отправке данных в API: {e}")
-    
-    # Уведомляем администраторов о новой заявке
-    for admin_id in config.ADMIN_IDS:
-        try:
-            # Отправляем сообщение администратору
-            pass  # Реализуется в admin_handlers.py
-        except Exception as e:
-            logger.error(f"Ошибка при отправке уведомления администратору {admin_id}: {e}")
-    
-    # Отвечаем пользователю
     await callback.message.edit_text(
-        "✅ <b>Заявка успешно отправлена!</b>\n\n"
-        "Твоя заявка на регистрацию принята и будет рассмотрена администратором в ближайшее время.\n\n"
-        "Ты получишь уведомление, когда статус заявки изменится."
+        "Пожалуйста, введите вашу должность:"
     )
-    
-    await callback.message.answer(
-        "Главное меню:",
-        reply_markup=keyboards.get_main_keyboard()
-    )
-    
+
+@router.callback_query(F.data == "reject_name", StateFilter(RegistrationStates.waiting_for_name_confirmation))
+async def callback_reject_name(callback: CallbackQuery, state: FSMContext):
+    """Отклонение имени через инлайн-кнопку"""
     await callback.answer()
-
-# Обработчик ввода кода приглашения
-@router.message(StateFilter(RegistrationStates.waiting_for_code))
-async def process_invitation_code(message: Message, state: FSMContext):
-    """Проверяет введенный код приглашения и начинает регистрацию сотрудника"""
     
-    # Получаем введенный код
-    invitation_code = message.text.strip()
+    # Пользователь хочет ввести другое имя
+    await state.set_state(RegistrationStates.waiting_for_name)
     
-    # Проверяем код через API
-    validation_result = await api_client.validate_invitation_code(
-        code=invitation_code,
-        telegram_id=message.from_user.id
-    )
-    
-    if validation_result.get("success"):
-        # Код валиден - получаем данные о должности и отделе
-        position = validation_result.get("position", {})
-        division = validation_result.get("division", {})
-        organization = validation_result.get("organization", {})
-        
-        # Сохраняем данные в состоянии
-        await state.update_data(
-            invitation_code=invitation_code,
-            position_id=position.get("id"),
-            position_name=position.get("name", "Неизвестная должность"),
-            division_id=division.get("id") if division else None,
-            division_name=division.get("name") if division else None,
-            organization_id=organization.get("id", 1),
-            organization_name=organization.get("name", "OFS Global")
-        )
-        
-        # Отображаем информацию о должности и продолжаем регистрацию
-        division_text = f"\n<b>Отдел:</b> {division.get('name')}" if division else ""
-        
-        await message.answer(
-            f"✅ <b>Код приглашения подтвержден!</b>\n\n"
-            f"<b>Должность:</b> {position.get('name', 'Неизвестная должность')}"
-            f"{division_text}\n\n"
-            f"Теперь заполним твой профиль. Отправь свою фотографию для профиля.",
-            reply_markup=keyboards.get_skip_photo_keyboard()
-        )
-        
-        # Переходим к следующему шагу - загрузке фото
-        await state.set_state(RegistrationStates.waiting_for_photo)
-    else:
-        # Код невалиден - сообщаем об ошибке
-        error_message = validation_result.get("message", "Неизвестная ошибка")
-        
-        await message.answer(
-            f"❌ <b>Неверный код приглашения!</b>\n\n"
-            f"Ошибка: {error_message}\n\n"
-            f"Пожалуйста, проверьте код и введите его снова, или свяжитесь с администратором.",
-            reply_markup=keyboards.get_cancel_keyboard()
-        )
-
-# Обработчик кнопки "Сбросить"
-@router.message(F.text == "🔄 Сбросить")
-async def reset_registration(message: Message, state: FSMContext):
-    """Сбрасывает процесс регистрации"""
-    # Очищаем состояние
-    await state.clear()
-    
-    await message.answer(
-        "🔄 Процесс регистрации сброшен.\n\n"
-        "Ты можешь начать заново, нажав на кнопку 'Зарегистрироваться'.",
-        reply_markup=keyboards.get_main_keyboard()
+    await callback.message.edit_text(
+        "👤 Пожалуйста, введи свое полное имя (ФИО):"
     )
 
-# Обработчик кнопки "Проверить статус"
-@router.message(F.text == "🔍 Проверить статус")
-async def check_status(message: Message):
-    """Проверяет текущий статус пользователя"""
-    user_id = str(message.from_user.id)
+@router.callback_query(F.data == "have_code")
+async def callback_have_code(callback: CallbackQuery, state: FSMContext):
+    """Обработчик нажатия на кнопку 'У меня есть код'"""
+    await callback.answer()
+    
+    await callback.message.edit_text(
+        "🔑 Пожалуйста, введи код приглашения, который ты получил:"
+    )
+    
+    # Устанавливаем состояние ожидания ввода кода
+    await state.set_state(RegistrationStates.waiting_for_code)
+
+@router.callback_query(F.data == "check_status")
+async def callback_check_status(callback: CallbackQuery):
+    """Обработчик нажатия на кнопку 'Проверить статус'"""
+    await callback.answer()
+    
+    user_id = str(callback.from_user.id)
     
     # Проверяем, зарегистрирован ли пользователь
     staff = db.get_employee_by_telegram_id(user_id)
     
     if staff:
-        await message.answer(
-            f"✅ <b>Статус: Зарегистрирован</b>\n\n"
+        await callback.message.edit_text(
+            f"✅ <b>Статус проверки:</b>\n\n"
+            f"Вы зарегистрированы в системе как сотрудник.\n"
             f"<b>Имя:</b> {staff.get('full_name', 'Не указано')}\n"
-            f"<b>Должность:</b> {staff.get('position_name', 'Не указана')}\n"
-            f"<b>Дата регистрации:</b> {staff.get('created_at', 'Не указана')}",
-            reply_markup=keyboards.get_main_keyboard()
+            f"<b>Должность:</b> {staff.get('position_name', 'Не указана')}\n\n"
+            f"🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
         )
         return
     
@@ -420,17 +276,13 @@ async def check_status(message: Message):
     pending_request = db.get_pending_request_by_telegram_id(user_id)
     
     if pending_request:
-        status_text = "Ожидает рассмотрения"
-        if pending_request.get('status') == 'approved':
-            status_text = "Одобрена (ожидает ввода кода)"
-        elif pending_request.get('status') == 'rejected':
-            status_text = "Отклонена"
-        
-        await message.answer(
-            f"⏳ <b>Статус: Заявка подана</b>\n\n"
-            f"<b>Статус заявки:</b> {status_text}\n"
-            f"<b>Дата подачи:</b> {pending_request.get('created_at', 'Не указана')}",
-            reply_markup=keyboards.get_main_keyboard()
+        await callback.message.edit_text(
+            f"⏳ <b>Статус проверки:</b>\n\n"
+            f"У вас есть активная заявка на регистрацию.\n"
+            f"<b>Дата создания:</b> {pending_request.get('created_at', 'Не указана')}\n"
+            f"<b>Статус:</b> Ожидает рассмотрения\n\n"
+            f"Пожалуйста, дождитесь, когда администратор рассмотрит вашу заявку.\n"
+            f"🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
         )
         return
     
@@ -438,81 +290,49 @@ async def check_status(message: Message):
     invitation_code = db.get_active_invitation_code(user_id)
     
     if invitation_code:
-        await message.answer(
-            f"🔑 <b>Статус: Ожидает ввода кода</b>\n\n"
-            f"Для тебя сгенерирован код приглашения.\n"
-            f"Пожалуйста, введи его для завершения регистрации.",
-            reply_markup=keyboards.get_registration_start_keyboard()
+        await callback.message.edit_text(
+            f"🔑 <b>Статус проверки:</b>\n\n"
+            f"Для вас создан код приглашения, который ожидает активации.\n"
+            f"<b>Срок действия до:</b> {invitation_code.get('expires_at', 'Не указан')}\n\n"
+            f"Для завершения регистрации введите код.\n"
+            f"🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
         )
         return
     
-    # Пользователь не зарегистрирован и не подавал заявку
-    await message.answer(
-        "❓ <b>Статус: Не зарегистрирован</b>\n\n"
-        "Ты еще не зарегистрирован в системе и не подавал заявку на регистрацию.",
-        reply_markup=keyboards.get_registration_start_keyboard()
+    await callback.message.edit_text(
+        "❌ <b>Статус проверки:</b>\n\n"
+        "У вас нет активных заявок на регистрацию или приглашений.\n"
+        "Чтобы начать процесс регистрации, выберите пункт '📝 Зарегистрироваться'.\n\n"
+        "🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
     )
 
-# Обработчик кнопки "У меня есть код"
-@router.message(F.text == "🔑 У меня есть код")
-async def have_code(message: Message, state: FSMContext):
-    """Переходит к вводу кода приглашения"""
-    user_id = str(message.from_user.id)
+@router.callback_query(F.data == "about_bot")
+async def callback_about_bot(callback: CallbackQuery):
+    """Обработчик нажатия на кнопку 'О боте'"""
+    await callback.answer()
     
-    # Проверяем, зарегистрирован ли пользователь
-    staff = db.get_employee_by_telegram_id(user_id)
-    
-    if staff:
-        await message.answer(
-            "✅ Ты уже зарегистрирован в системе.",
-            reply_markup=keyboards.get_main_keyboard()
-        )
-        return
-    
-    # Устанавливаем состояние ожидания ввода кода
-    await state.set_state(RegistrationStates.waiting_for_code)
-    
-    await message.answer(
-        "🔑 Пожалуйста, введи код приглашения, который тебе предоставили:",
-        reply_markup=keyboards.get_reset_keyboard()
+    await callback.message.edit_text(
+        "ℹ️ <b>О боте</b>\n\n"
+        "Этот бот предназначен для регистрации сотрудников компании OFS Global.\n"
+        "Версия: 1.0.0\n"
+        "Разработчик: OFS Development Team\n\n"
+        "🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
     )
 
-# Обработчик кнопки "О боте"
-@router.message(F.text == "ℹ️ О боте")
-async def about_bot(message: Message):
-    """Показывает информацию о боте"""
-    await message.answer(
-        "🤖 <b>О боте</b>\n\n"
-        "Этот бот предназначен для регистрации сотрудников OFS Global.\n\n"
-        "<b>Процесс регистрации:</b>\n"
-        "1. Подай заявку на регистрацию\n"
-        "2. Дождись одобрения от администратора\n"
-        "3. Введи код приглашения, который будет отправлен тебе\n"
-        "4. Готово! Ты зарегистрирован в системе\n\n"
-        "<b>Версия:</b> 1.0.0\n"
-        "<b>Разработчик:</b> OFS Global Technology Team",
-        reply_markup=keyboards.get_main_keyboard()
-    )
-
-# Обработчик кнопки "Помощь"
-@router.message(F.text == "❓ Помощь")
-async def show_help(message: Message):
-    """Показывает справку по боту"""
-    await message.answer(
-        "❓ <b>Помощь</b>\n\n"
-        "<b>Доступные команды:</b>\n"
-        "/start - Начать работу с ботом\n"
-        "/help - Показать справку\n\n"
-        "<b>Как зарегистрироваться:</b>\n"
-        "1. Нажми кнопку '📝 Зарегистрироваться'\n"
-        "2. Заполни необходимые данные\n"
-        "3. Дождись одобрения заявки администратором\n"
-        "4. Введи полученный код приглашения\n\n"
-        "<b>Если у тебя есть код:</b>\n"
-        "Нажми кнопку '🔑 У меня есть код' и введи свой код приглашения.\n\n"
-        "<b>Проблемы с регистрацией?</b>\n"
-        "Если у тебя возникли проблемы с регистрацией, обратись к администратору своего отдела.",
-        reply_markup=keyboards.get_main_keyboard()
+@router.callback_query(F.data == "show_help")
+async def callback_show_help(callback: CallbackQuery):
+    """Обработчик нажатия на кнопку 'Помощь'"""
+    await callback.answer()
+    
+    await callback.message.edit_text(
+        "❓ <b>Справка</b>\n\n"
+        "Как использовать бота:\n"
+        "1. Нажмите на кнопку '📝 Зарегистрироваться'\n"
+        "2. Следуйте инструкциям для заполнения данных\n"
+        "3. Дождитесь проверки администратором\n"
+        "4. Если у вас уже есть код приглашения, нажмите '🔑 У меня есть код'\n\n"
+        "По вопросам поддержки обращайтесь к администратору системы.\n\n"
+        "🏠 <a href='tg://bot_command?command=start'>Вернуться в главное меню</a>"
     )
 
 def register_registration_handlers(dispatcher: Router):

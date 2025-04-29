@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   email: string;
-  full_name: string;
+  full_name: string | null;
   is_active: boolean;
   is_superuser: boolean;
   created_at: string;
@@ -12,7 +12,7 @@ export interface User {
 export interface UserCreate {
   email: string;
   password?: string;
-  full_name: string;
+  full_name?: string | null;
   is_active?: boolean;
   is_superuser?: boolean;
 }
@@ -20,7 +20,7 @@ export interface UserCreate {
 export interface UserUpdate {
   email?: string;
   password?: string;
-  full_name?: string;
+  full_name?: string | null;
   is_active?: boolean;
   is_superuser?: boolean;
 }
@@ -39,4 +39,9 @@ export interface TokenResponse {
 export interface UserLogin {
   username: string; // В большинстве случаев это email
   password: string;
+}
+
+export interface UsersPublic {
+  data: User[];
+  total: number;
 } 

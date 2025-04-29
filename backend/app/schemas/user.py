@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class UserBase(BaseModel):
@@ -7,6 +7,7 @@ class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     is_active: bool = True
+    is_superuser: bool = False
     
 class UserCreate(UserBase):
     """Схема для создания пользователя"""
@@ -18,13 +19,13 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     password: Optional[str] = Field(None, min_length=8)
     is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     
 class UserInDBBase(UserBase):
     """Базовая схема для пользователя в БД"""
     id: int
     created_at: datetime
     updated_at: datetime
-    is_superuser: bool
     
     class Config:
         from_attributes = True
@@ -39,4 +40,9 @@ class UserActivate(BaseModel):
     
 class UserInDB(UserInDBBase):
     """Схема для внутреннего использования с хеш-паролем"""
-    hashed_password: Optional[str] 
+    hashed_password: Optional[str]
+
+# Новая схема для пагинированного ответа
+class UsersPublic(BaseModel):
+    data: List[User]
+    total: int 

@@ -2,7 +2,7 @@ import re
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command, StateFilter
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
@@ -31,6 +31,7 @@ class RegistrationStates(StatesGroup):
     waiting_for_photo = State()
     waiting_for_competencies = State()
     waiting_for_confirmation = State()
+    waiting_for_code = State()
 
 # Обработчик команды /start
 @router.message(Command("start"))
@@ -322,5 +323,101 @@ def register_handlers(dp: Router, confirm_callback):
 # Обработчик кнопки "Помощь"
 @router.message(F.text == "❓ Помощь")
 async def show_help(message: Message):
-    """Показать справку по использованию бота"""
-    await cmd_help(message) 
+    """Показывает справочную информацию"""
+    await message.answer(
+        "📌 <b>Справка по использованию бота:</b>\n\n"
+        "• Нажми кнопку <b>📝 Зарегистрироваться</b> для начала процесса регистрации\n"
+        "• Следуй инструкциям бота для заполнения данных\n"
+        "• Используй команду /cancel для отмены текущего процесса\n\n"
+        "По вопросам работы бота обращайся к администратору системы.",
+        reply_markup=keyboards.get_main_keyboard()
+    )
+
+# Добавляем новую функцию main_menu для вызова из admin_handlers.py
+async def main_menu(message: Message):
+    """Отображает главное меню с удалением клавиатуры кнопок"""
+    await message.answer(
+        "👋 <b>Главное меню</b>\n\n"
+        "Выберите нужное действие из меню.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # Затем отправляем сообщение с новыми inline-кнопками
+    await message.answer(
+        "👋 <b>Доступные действия:</b>",
+        reply_markup=keyboards.get_main_inline_keyboard()
+    )
+
+# Обработчики для инлайн-кнопок главного меню
+@router.callback_query(F.data == "start_registration")
+async def start_registration_callback(callback: CallbackQuery, state: FSMContext):
+    """Начинает процесс регистрации через инлайн-кнопку"""
+    await callback.answer()
+    await callback.message.delete()  # Удаляем сообщение с инлайн-кнопками
+    
+    # Запускаем тот же процесс, что и при нажатии кнопки "Зарегистрироваться"
+    message = callback.message
+    user_id = str(callback.from_user.id)
+    
+    # Проверяем, зарегистрирован ли пользователь
+    db = BotDatabase()
+    staff = db.get_employee_by_telegram_id(user_id)
+    
+    if staff:
+        await message.answer(
+            "✅ Ты уже зарегистрирован в системе как сотрудник.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return
+    
+    # Проверяем, есть ли активная заявка на регистрацию
+    pending_request = db.get_pending_request_by_telegram_id(user_id)
+    
+    if pending_request:
+        await message.answer(
+            "⏳ Твоя заявка на регистрацию уже отправлена и ожидает рассмотрения администратором.\n"
+            "Пожалуйста, дождись ответа.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return
+    
+    # Проверяем, есть ли код приглашения для этого пользователя
+    invitation_code = db.get_active_invitation_code(user_id)
+    
+    if invitation_code:
+        await message.answer(
+            "👨‍💼 Для тебя уже был сгенерирован код приглашения.\n"
+            "Пожалуйста, введи его для завершения регистрации:",
+            reply_markup=keyboards.get_reset_keyboard()
+        )
+        
+        # Устанавливаем состояние ожидания ввода кода
+        await state.set_state(RegistrationStates.waiting_for_code)
+        return
+    
+    # Перенаправляем на обработчик из registration_handlers.py
+    from telegram_bot.registration_handlers import registration_start
+    await registration_start(message, state)
+
+@router.callback_query(F.data == "show_help")
+async def show_help_callback(callback: CallbackQuery):
+    """Показывает справочную информацию через инлайн-кнопку"""
+    await callback.answer()
+    await callback.message.edit_text(
+        "📌 <b>Справка по использованию бота:</b>\n\n"
+        "• Нажми кнопку <b>📝 Зарегистрироваться</b> для начала процесса регистрации\n"
+        "• Следуй инструкциям бота для заполнения данных\n"
+        "• Используй команду /cancel для отмены текущего процесса\n\n"
+        "По вопросам работы бота обращайся к администратору системы.",
+        reply_markup=keyboards.get_main_inline_keyboard()
+    )
+
+@router.callback_query(F.data == "back_to_main")
+async def back_to_main_callback(callback: CallbackQuery):
+    """Возвращает в главное меню из любого места"""
+    await callback.answer()
+    await callback.message.edit_text(
+        "👋 <b>Главное меню</b>\n\n"
+        "Выберите нужное действие из меню.",
+        reply_markup=keyboards.get_main_inline_keyboard()
+    ) 

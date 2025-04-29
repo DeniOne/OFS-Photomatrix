@@ -16,7 +16,7 @@ import { isAuthenticated as checkAuthState } from './api/auth';
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 // Для менее важных страниц не используем предзагрузку
-const UsersPage = lazy(() => import('./pages/UsersPage'));
+const UsersPage = lazy(() => import('./pages/Users'));
 const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage'));
 const DivisionsPage = lazy(() => import('./pages/DivisionsPage'));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
@@ -25,6 +25,7 @@ const PositionsPage = lazy(() => import('./features/positions/pages/PositionsPag
 const StaffPage = lazy(() => import('./features/staff/pages/StaffPage'));
 const StaffDetailPage = lazy(() => import('./features/staff/pages/StaffDetailPage'));
 const TestPage = lazy(() => import('./pages/TestPage'));
+const OrgChartPage = lazy(() => import('./features/orgchart/pages/OrgChartPage'));
 // Убираем тестовую страницу
 // const TestModalPage = lazy(() => import('./pages/TestModalPage')); 
 // --------------------------------
@@ -204,6 +205,14 @@ function App() {
                   path="/staff/:id"
                   element={isAuthenticated ? 
                     <WrappedRoute element={<StaffDetailPage />} /> : 
+                    <Navigate to="/login" replace />
+                  }
+                />
+                
+                <Route
+                  path="/orgchart"
+                  element={isAuthenticated ? 
+                    <WrappedRoute element={<OrgChartPage />} /> : 
                     <Navigate to="/login" replace />
                   }
                 />
