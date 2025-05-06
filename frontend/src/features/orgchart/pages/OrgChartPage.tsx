@@ -1,25 +1,31 @@
-import React, { useState, useRef } from 'react';
-import { Box, Title, Text, Stack, Breadcrumbs, Group, Grid, ActionIcon, LoadingOverlay, Alert, TextInput } from '@mantine/core';
+import { useState, useRef, useCallback } from 'react';
+import { Box, Title, Text, Stack, Breadcrumbs, Group, Grid, ActionIcon, LoadingOverlay, TextInput, Paper, SegmentedControl } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { IconSitemap, IconSettings, IconAlertCircle, IconSearch, IconX } from '@tabler/icons-react';
-import OrgChart, { OrgChartHandle } from '../components/OrgChart';
-import OrgChartSettings, { OrgChartSettingsValues, defaultOrgChartSettings } from '../components/OrgChartSettings';
-import { useOrgChartData } from '../api/useOrgChartData';
+import { IconSitemap, IconSettings, IconSearch, IconZoomIn, IconZoomOut, IconZoomReset, IconDownload, IconBuilding, IconMapPin, IconHierarchy } from '@tabler/icons-react';
+import OrgChart from '../components/OrgChart';
+import { OrgChartHandle, OrgChartViewType } from '../types/orgChartTypes';
+import OrgChartSettings from '../components/OrgChartSettings';
+import { OrgChartSettingsValues, defaultOrgChartSettings } from '../types/orgChartSettingsTypes';
+import { useOrgChartData } from '../hooks/useOrgChartData';
+import NoDataView from '../components/NoDataView';
 
 export function OrgChartPage() {
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState<OrgChartSettingsValues>(defaultOrgChartSettings);
+  const [settings, setSettings] = useState<OrgChartSettingsValues>({
+    ...defaultOrgChartSettings
+  });
   
-  const { data: orgChartData, isLoading, error } = useOrgChartData();
+  // Тип отображаемой схемы (по умолчанию - бизнес-схема)
+  const [viewType, setViewType] = useState<OrgChartViewType>('business');
   
-  // Создаем ref для доступа к методам OrgChart
+  // Используем хук с передачей типа схемы
+  const { isLoading, error, data, refetch } = useOrgChartData(viewType);
+  
   const orgChartRef = useRef<OrgChartHandle>(null);
   
-  // Состояние для поискового запроса
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Хлебные крошки для навигации
   const items = [
     { title: 'Главная', href: '/' },
     { title: 'Оргструктура', href: '#' },
@@ -29,43 +35,82 @@ export function OrgChartPage() {
     </Text>
   ));
 
-  // Обработчики для экспорта и масштабирования
   const handleExport = (format: 'svg' | 'png') => {
-    // TODO: Вызвать метод экспорта из OrgChart через ref, если он будет реализован
-    console.log(`Экспорт в формате ${format}`);
+    if (format === 'svg') {
+      const svgElement = document.querySelector('.org-chart-container')?.parentElement;
+      if (svgElement) {
+        // Код для сохранения SVG - исправлено приведение типов
+        const svgData = new XMLSerializer().serializeToString(svgElement as unknown as SVGElement);
+        const blob = new Blob([svgData], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'org-chart.svg';
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } else if (format === 'png') {
+      // Экспорт в PNG (требует дополнительной библиотеки)
+      console.log('Экспорт в PNG не реализован');
+    }
   };
 
-  const handleZoomIn = () => {
-    // TODO: Вызвать метод зума из OrgChart через ref
-    console.log("Zoom In (not implemented via ref yet)");
-  };
+  const handleZoomIn = useCallback(() => {
+    if (orgChartRef.current) {
+      orgChartRef.current.zoomIn();
+    }
+  }, []);
 
-  const handleZoomOut = () => {
-    // TODO: Вызвать метод зума из OrgChart через ref
-    console.log("Zoom Out (not implemented via ref yet)");
-  };
+  const handleZoomOut = useCallback(() => {
+    if (orgChartRef.current) {
+      orgChartRef.current.zoomOut();
+    }
+  }, []);
 
-  // Используем метод сброса из OrgChart через ref
-  const handleReset = () => {
-    // Сбрасываем настройки в родительском компоненте
-    setSettings(defaultOrgChartSettings);
-    // Вызываем сброс зума/положения в дочернем компоненте
-    orgChartRef.current?.resetZoom();
-  };
+  const handleReset = useCallback(() => {
+    if (orgChartRef.current) {
+      orgChartRef.current.resetZoom();
+    }
+  }, []);
 
-  // Обработчик клика на узел, который вызывает центрирование
-  const handleNodeClick = (nodeId: string) => {
-    console.log('Node clicked in Page:', nodeId);
-    orgChartRef.current?.centerOnNode(nodeId); // Вызываем центрирование
+  const handleNodeClick = useCallback((nodeId: string) => {
+    if (orgChartRef.current) {
+      orgChartRef.current.zoomToNode(nodeId);
+    }
+  }, []);
+
+  // Обработчик смены типа схемы
+  const handleViewTypeChange = useCallback((value: string) => {
+    const newType = value as OrgChartViewType;
+    setViewType(newType);
+    
+    // Сбрасываем зум при смене представления
+    setTimeout(() => {
+      if (orgChartRef.current) {
+        orgChartRef.current.resetZoom();
+      }
+    }, 300);
+  }, []);
+
+  // Получаем заголовок в зависимости от типа схемы
+  const getViewTitle = () => {
+    switch (viewType) {
+      case 'business':
+        return 'Бизнес-структура';
+      case 'legal':
+        return 'Юридическая структура';
+      case 'location':
+        return 'Территориальная структура';
+      default:
+        return 'Оргструктура';
+    }
   };
 
   return (
     <Box p="md">
       <Stack>
-        <Group>
-          <Group>
-            <Breadcrumbs>{items}</Breadcrumbs>
-          </Group>
+        <Group justify="space-between">
+          <Breadcrumbs>{items}</Breadcrumbs>
           <ActionIcon 
             variant="light" 
             size="lg" 
@@ -76,26 +121,55 @@ export function OrgChartPage() {
           </ActionIcon>
         </Group>
         
-        <Group>
+        <Group justify="space-between">
           <Group>
              <IconSitemap size={28} stroke={1.5} />
-             <Title order={1}>Оргструктура</Title>
+             <Title order={1}>{getViewTitle()}</Title>
           </Group>
-          {/* Поле поиска */}
-          <TextInput
-            placeholder="Поиск по названию/должности..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.currentTarget.value)}
-            icon={<IconSearch size={16} />}
-            rightSection={
-              searchTerm ? (
-                <ActionIcon onClick={() => setSearchTerm('')} title="Очистить">
-                  <IconX size={16} />
-                </ActionIcon>
-              ) : null
-            }
-            sx={{ flexGrow: 1, maxWidth: '400px' }} // Растягиваем, но ограничиваем
-          />
+          
+          <Group>
+            <SegmentedControl
+              value={viewType}
+              onChange={handleViewTypeChange}
+              data={[
+                { 
+                  value: 'business', 
+                  label: (
+                    <Group gap={6} wrap="nowrap">
+                      <IconHierarchy size={16} />
+                      <Text size="sm">Бизнес</Text>
+                    </Group>
+                  ) 
+                },
+                { 
+                  value: 'legal', 
+                  label: (
+                    <Group gap={6} wrap="nowrap">
+                      <IconBuilding size={16} />
+                      <Text size="sm">Юрлица</Text>
+                    </Group>
+                  ) 
+                },
+                { 
+                  value: 'location', 
+                  label: (
+                    <Group gap={6} wrap="nowrap">
+                      <IconMapPin size={16} />
+                      <Text size="sm">Локации</Text>
+                    </Group>
+                  ) 
+                },
+              ]}
+            />
+            
+            <TextInput
+              placeholder="Поиск по имени или должности"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.currentTarget.value)}
+              style={{ width: 300 }}
+              rightSection={<IconSearch size={16} />}
+            />
+          </Group>
         </Group>
         
         <Grid gutter="md">
@@ -113,23 +187,75 @@ export function OrgChartPage() {
           )}
           
           <Grid.Col span={showSettings ? 9 : 12}>
-            <Box sx={{ height: 'calc(100vh - 220px)', position: 'relative' }}> {/* Уменьшил высоту из-за поиска */}
-              <LoadingOverlay visible={isLoading} overlayBlur={2} />
+            <div style={{ 
+              position: 'relative', 
+              height: 'calc(100vh - 120px)',
+              width: '100%',
+              overflow: 'hidden',
+              border: '1px solid #30363d',
+              borderRadius: '8px'
+            }}>
+              {isLoading && <LoadingOverlay visible={true} />}
+              
               {error && (
-                <Alert color="red" title="Ошибка">
-                  {error.message}
-                </Alert>
-              )}
-              {!isLoading && !error && orgChartData && (
-                <OrgChart 
-                  ref={orgChartRef}
-                  data={orgChartData} 
-                  settings={settings}
-                  onNodeClick={handleNodeClick}
-                  searchTerm={searchTerm} // Передаем поисковый запрос
+                <NoDataView 
+                  message={`Произошла ошибка при загрузке организационной структуры: ${error}`}
+                  onRetry={refetch}
                 />
               )}
-            </Box>
+              
+              {!isLoading && !error && !data && (
+                <NoDataView 
+                  message="Данные организационной структуры отсутствуют или недоступны."
+                  onRetry={refetch}
+                />
+              )}
+              
+              {data && (
+                <>
+                  {/* Контрольная панель масштабирования */}
+                  <Paper
+                    style={{
+                      position: 'absolute',
+                      right: '20px',
+                      top: '20px',
+                      zIndex: 100,
+                      padding: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      background: 'rgba(39, 43, 55, 0.8)',
+                      backdropFilter: 'blur(4px)',
+                      borderRadius: '8px',
+                    }}
+                  >
+                    <ActionIcon onClick={handleZoomIn}>
+                      <IconZoomIn size={20} />
+                    </ActionIcon>
+                    <ActionIcon onClick={handleZoomOut}>
+                      <IconZoomOut size={20} />
+                    </ActionIcon>
+                    <ActionIcon onClick={handleReset}>
+                      <IconZoomReset size={20} />
+                    </ActionIcon>
+                    <ActionIcon onClick={() => handleExport('svg')}>
+                      <IconDownload size={20} />
+                    </ActionIcon>
+                  </Paper>
+                  
+                  <OrgChart
+                    ref={orgChartRef}
+                    data={data}
+                    settings={settings}
+                    searchTerm={searchTerm}
+                    viewType={viewType}
+                    onNodeClick={handleNodeClick}
+                    width={window.innerWidth * (showSettings ? 0.75 : 0.95)}
+                    height={window.innerHeight - 150}
+                  />
+                </>
+              )}
+            </div>
           </Grid.Col>
         </Grid>
       </Stack>

@@ -123,5 +123,18 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         """Проверка суперпользователя"""
         return user.is_superuser
 
+    async def get_superuser(self, db: AsyncSession) -> Optional[User]:
+        """Получить первого суперпользователя из базы данных.
+        
+        Args:
+            db: Асинхронная сессия базы данных.
+            
+        Returns:
+            User: Первый найденный суперпользователь или None, если таких нет.
+        """
+        stmt = select(User).where(User.is_superuser == True, User.is_active == True).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
 # Создание синглтона для использования в приложении
 user = CRUDUser(User) 

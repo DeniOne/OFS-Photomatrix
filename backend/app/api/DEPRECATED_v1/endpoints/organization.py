@@ -32,6 +32,46 @@ async def read_organizations(
     organizations = await crud.organization.get_multi(db, skip=skip, limit=limit)
     return organizations
 
+@router.get("/tree", response_model=List[schemas.OrganizationTree])
+async def get_organization_tree(
+    db: AsyncSession = Depends(deps.get_db),
+    # current_user: models.User = Depends(deps.get_current_active_user)
+) -> List[schemas.OrganizationTree]:
+    """Получение дерева организаций"""
+    try:
+        # Получаем все организации
+        organizations = await crud.organization.get_all(db)
+        
+        # Строим дерево
+        tree = []
+        org_map = {org.id: org for org in organizations}
+        
+        # Собираем корневые узлы (без parent_id)
+        for org in organizations:
+            if org.parent_id is None:
+                # Рекурсивно строим дерево
+                tree_node = schemas.OrganizationTree.model_validate(org)
+                tree_node.children = _build_children(org.id, org_map)
+                tree.append(tree_node)
+        
+        return tree
+    except Exception as e:
+        logger.error(f"Error building organization tree: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error building organization tree: {str(e)}"
+        )
+
+def _build_children(parent_id: int, org_map: dict):
+    """Рекурсивное построение дерева организаций"""
+    children = []
+    for org_id, org in org_map.items():
+        if org.parent_id == parent_id:
+            tree_node = schemas.OrganizationTree.model_validate(org)
+            tree_node.children = _build_children(org.id, org_map)
+            children.append(tree_node)
+    return children
+
 @router.get("/{organization_id}", response_model=schemas.Organization)
 async def read_organization(
     *,

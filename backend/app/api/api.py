@@ -1,49 +1,31 @@
+from fastapi import APIRouter
 import logging
 
-from fastapi import APIRouter
+# Явно импортируем роутеры из модулей, минуя __init__.py
+from app.api.endpoints.auth import router as login_router
+from app.api.endpoints.users import router as users_router
+from app.api.endpoints.organizations import router as organizations_router
+from app.api.endpoints.divisions import router as divisions_router
+from app.api.endpoints.positions import router as positions_router
+from app.api.endpoints.staff import router as staff_router
+from app.api.endpoints.value_products import router as value_products_router
+from app.api.endpoints.functions import router as functions_router
+from app.api.endpoints.sections import router as sections_router
+from app.api.endpoints.orgchart import router as orgchart_router
 
-from app.api.endpoints import (
-    auth,
-    users,
-    organizations,
-    divisions,
-    sections,
-    positions,
-    value_products,
-    functions,
-    staff,
-    orgchart
-)
+logger = logging.getLogger(__name__)
 
+# Создаем и настраиваем основной роутер API
 api_router = APIRouter()
+api_router.include_router(login_router, prefix="", tags=["login"])
+api_router.include_router(users_router, prefix="/users", tags=["users"])
+api_router.include_router(organizations_router, prefix="/organizations", tags=["organizations"])
+api_router.include_router(divisions_router, prefix="/divisions", tags=["divisions"])
+api_router.include_router(positions_router, prefix="/positions", tags=["positions"])
+api_router.include_router(staff_router, prefix="/staff", tags=["staff"])
+api_router.include_router(value_products_router, prefix="/value_products", tags=["value_products"])
+api_router.include_router(functions_router, prefix="/functions", tags=["functions"])
+api_router.include_router(sections_router, prefix="/sections", tags=["sections"])
+api_router.include_router(orgchart_router, prefix="/orgchart", tags=["orgchart"])
 
-# Логируем перед подключением каждого роутера (для отладки 405)
-logging.info("Подключение роутера /auth...")
-api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-logging.info("Подключение роутера /users...")
-api_router.include_router(users.router, prefix="/users", tags=["users"])
-logging.info("Подключение роутера /organizations...")
-api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
-logging.info("Подключение роутера /divisions...")
-api_router.include_router(divisions.router, prefix="/divisions", tags=["divisions"])
-logging.info("Подключение роутера /sections...")
-api_router.include_router(sections.router, prefix="/sections", tags=["sections"])
-logging.info("Подключение роутера /positions...")
-api_router.include_router(positions.router, prefix="/positions", tags=["positions"])
-logging.info("Подключение роутера /value-products...")
-api_router.include_router(value_products.router, prefix="/value-products", tags=["value-products"])
-logging.info("Подключение роутера /functions...")
-api_router.include_router(functions.router, prefix="/functions", tags=["functions"])
-logging.info("Подключение роутера /staff...")
-api_router.include_router(staff.router, prefix="/staff", tags=["staff"])
-
-# --- Подключаем роутер оргструктуры ---
-logging.info("Подключение роутера /orgchart...")
-api_router.include_router(
-    orgchart.router, 
-    prefix="/orgchart", # Префикс для всех путей в этом роутере
-    tags=["orgchart"]   # Тег для документации Swagger/OpenAPI
-)
-# --------------------------------------
-
-logging.info("--- Все роутеры подключены к api_router ---") 
+logger.info("API роутеры настроены")

@@ -58,9 +58,11 @@ async def log_requests(request: Request, call_next):
 # Настройка CORS - РАЗРЕШАЕМ ВСЁ ДЛЯ ОТЛАДКИ!
 origins = [
     "http://localhost:5173",  # Vite dev server
+    "http://localhost:5174",  # Vite dev server (альтернативный порт)
     "http://localhost:3000",  # React dev server
     "http://localhost",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
     "http://127.0.0.1:3000",
     "http://127.0.0.1",
     "*",  # Все источники (для отладки)

@@ -1,361 +1,367 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, 
   Title, 
-  SegmentedControl, 
-  Slider, 
-  ColorPicker, 
-  Checkbox, 
-  Group, 
+  Paper, 
   Stack, 
-  Select, 
-  Button, 
-  Divider,
-  Accordion,
-  Paper,
+  Slider, 
+  Group, 
   Text,
   Switch,
+  SegmentedControl, 
+  ColorInput,
+  Collapse,
+  Button,
   NumberInput,
-  useMantineTheme
+  ActionIcon,
+  Divider
 } from '@mantine/core';
+import { useForm } from '@mantine/form';
 import { 
   IconDownload, 
-  IconArrowsMaximize, 
-  IconArrowsMinimize,
-  IconLayoutList,
   IconZoomIn,
   IconZoomOut,
-  IconRotate,
+  IconRefresh, 
+  IconLayoutGrid, 
+  IconLayoutColumns, 
+  IconLayoutRows,
   IconChevronUp,
-  IconChevronRight
+  IconChevronDown
 } from '@tabler/icons-react';
+import { OrgChartSettingsValues, defaultOrgChartSettings, nodeSizePresets } from '../types/orgChartSettingsTypes';
 
-// Интерфейс для настроек
-export interface OrgChartSettingsValues {
-  layout: 'vertical' | 'horizontal' | 'radial';
-  nodeSize: number;
-  levelGap: number;
-  siblingGap: number;
-  nodeBorderRadius: number;
-  showTitle: boolean;
-  showDepartmentCode: boolean;
-  colorByType: boolean;
-  linkStyle: 'curved' | 'straight' | 'step';
-  zoom: number;
-  maxDepth: number | null;
-  showGrid: boolean;
-  compactView: boolean;
-  departmentColor: string;
-  divisionColor: string;
-}
-
-// Пропсы компонента
+// Интерфейс для пропсов компонента
 interface OrgChartSettingsProps {
   settings: OrgChartSettingsValues;
-  onSettingsChange: (settings: OrgChartSettingsValues) => void;
-  onExport: (format: 'svg' | 'png') => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
+  userSettings?: Partial<OrgChartSettingsValues>;
+  onSettingsChange: (values: OrgChartSettingsValues) => void;
+  onExport?: (format: 'svg' | 'png') => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onReset?: () => void;
 }
 
 // Компонент настроек
-export function OrgChartSettings({
+export default function OrgChartSettings({
   settings,
+  userSettings,
   onSettingsChange,
   onExport,
   onZoomIn,
   onZoomOut,
-  onReset
+  onReset,
 }: OrgChartSettingsProps) {
-  const theme = useMantineTheme();
+  const [activeSection, setActiveSection] = useState<string | null>('layout');
   
-  // Обработчик изменения отдельного поля
-  const handleChange = <K extends keyof OrgChartSettingsValues>(
-    key: K, 
-    value: OrgChartSettingsValues[K]
-  ) => {
-    onSettingsChange({
+  // Инициализация формы с переданными настройками
+  const form = useForm<OrgChartSettingsValues>({
+    initialValues: {
+      ...defaultOrgChartSettings,
       ...settings,
-      [key]: value
-    });
+      ...userSettings
+    },
+  });
+  
+  // Устанавливаем правильный пресет в зависимости от размеров
+  useEffect(() => {
+    const { nodeWidth, nodeHeight } = form.values;
+    
+    // Ищем подходящий пресет
+    const preset = Object.entries(nodeSizePresets).find(
+      ([key, value]) => key !== 'custom' && value.width === nodeWidth && value.height === nodeHeight
+    );
+    
+    if (preset) {
+      form.setFieldValue('nodeSizePreset', preset[0] as 'small' | 'medium' | 'large');
+    } else {
+      form.setFieldValue('nodeSizePreset', 'custom');
+    }
+  }, [form.values.nodeWidth, form.values.nodeHeight]);
+
+  // Обработчик изменений в форме
+  useEffect(() => {
+    // Вызываем callback при изменении любого поля
+    onSettingsChange(form.values);
+  }, [form.values, onSettingsChange]);
+
+  const toggleSection = (section: string) => {
+    setActiveSection(activeSection === section ? null : section);
+  };
+  
+  const handlePresetChange = (preset: string) => {
+    if (preset === 'custom') return;
+    
+    const { width, height } = nodeSizePresets[preset as keyof typeof nodeSizePresets];
+    form.setFieldValue('nodeWidth', width);
+    form.setFieldValue('nodeHeight', height);
+    form.setFieldValue('nodeSizePreset', preset as 'small' | 'medium' | 'large' | 'custom');
   };
 
   return (
-    <Paper 
-      p="md" 
-      radius="md" 
-      shadow="sm"
-      sx={{
-        backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[7] : theme.colors.gray[0]
-      }}
-    >
-      <Stack spacing="md">
-        <Group position="apart">
-          <Title order={4}>Настройки диаграммы</Title>
-          <Group spacing="xs">
+    <Paper p="md" radius="md" withBorder>
+      <Stack gap="xs">
+        <Title order={3} size="h4">Настройки организационной диаграммы</Title>
+        
+        {/* Кнопки управления */}
+        <Group justify="space-between" mb="xs">
+          <Group gap="xs">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              onClick={onZoomIn} 
+              title="Увеличить"
+            >
+              <IconZoomIn size={18} />
+            </ActionIcon>
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              onClick={onZoomOut} 
+              title="Уменьшить"
+            >
+              <IconZoomOut size={18} />
+            </ActionIcon>
+            <ActionIcon 
+              variant="light" 
+              color="gray" 
+              onClick={onReset} 
+              title="Сбросить настройки"
+            >
+              <IconRefresh size={18} />
+            </ActionIcon>
+          </Group>
+          
+          <Group gap="xs">
             <Button 
               variant="light" 
               size="xs" 
-              leftIcon={<IconZoomIn size={16} />}
-              onClick={onZoomIn}
+              onClick={() => onExport && onExport('svg')}
             >
-              Увеличить
+              <Group gap={6} justify="center">
+                <IconDownload size={16} />
+                <span>SVG</span>
+              </Group>
             </Button>
             <Button 
               variant="light" 
               size="xs" 
-              leftIcon={<IconZoomOut size={16} />}
-              onClick={onZoomOut}
+              onClick={() => onExport && onExport('png')}
             >
-              Уменьшить
-            </Button>
-            <Button 
-              variant="subtle" 
-              size="xs"
-              onClick={onReset}
-            >
-              Сбросить
+              <Group gap={6} justify="center">
+                <IconDownload size={16} />
+                <span>PNG</span>
+              </Group>
             </Button>
           </Group>
         </Group>
 
         <Divider />
 
-        <Accordion defaultValue="layout" radius="md">
-          <Accordion.Item value="layout">
-            <Accordion.Control>
-              <Group spacing="xs">
-                <IconLayoutList size={16} />
-                <Text>Макет</Text>
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Stack spacing="xs">
-                <Text size="sm" weight={500}>Ориентация</Text>
+        {/* Раздел макета */}
+        <Box>
+          <Group justify="space-between" onClick={() => toggleSection('layout')} style={{ cursor: 'pointer' }}>
+            <Text fw={500}>Макет и масштаб</Text>
+            <ActionIcon>
+              {activeSection === 'layout' ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            </ActionIcon>
+          </Group>
+          
+          <Collapse in={activeSection === 'layout'}>
+            <Box mt="xs">
+              <Text fw={500} size="sm" mb={5}>Тип макета</Text>
                 <SegmentedControl
-                  value={settings.layout}
-                  onChange={(value) => handleChange('layout', value as OrgChartSettingsValues['layout'])}
+                fullWidth
+                value={form.values.layout}
+                onChange={(value) => form.setFieldValue('layout', value as 'horizontal' | 'vertical' | 'radial')}
                   data={[
-                    { label: 'Вертикальная', value: 'vertical' },
-                    { label: 'Горизонтальная', value: 'horizontal' },
-                    { label: 'Радиальная', value: 'radial' }
-                  ]}
-                  fullWidth
-                />
-
-                <Text size="sm" weight={500} mt="xs">Стиль соединений</Text>
+                  { value: 'vertical', label: <Box><IconLayoutRows size={16} /><Box>Вертик.</Box></Box> },
+                  { value: 'horizontal', label: <Box><IconLayoutColumns size={16} /><Box>Гориз.</Box></Box> },
+                  { value: 'radial', label: <Box><IconLayoutGrid size={16} /><Box>Радиал.</Box></Box> },
+                ]}
+              />
+              
+              <Text fw={500} size="sm" mt="md" mb={5}>Масштаб по умолчанию</Text>
+              <Slider
+                min={0.3}
+                max={1.5}
+                step={0.1}
+                label={(value) => `${Math.round(value * 100)}%`}
+                value={form.values.zoom}
+                onChange={(value) => form.setFieldValue('zoom', value)}
+                marks={[
+                  { value: 0.5, label: '50%' },
+                  { value: 1, label: '100%' },
+                  { value: 1.5, label: '150%' },
+                ]}
+              />
+            </Box>
+          </Collapse>
+        </Box>
+        
+        {/* Раздел размеров */}
+        <Box>
+          <Group justify="space-between" onClick={() => toggleSection('sizes')} style={{ cursor: 'pointer' }}>
+            <Text fw={500}>Размеры и отступы</Text>
+            <ActionIcon>
+              {activeSection === 'sizes' ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            </ActionIcon>
+          </Group>
+          
+          <Collapse in={activeSection === 'sizes'}>
+            <Box mt="xs">
+              <Text fw={500} size="sm" mb={5}>Размер узлов</Text>
                 <SegmentedControl
-                  value={settings.linkStyle}
-                  onChange={(value) => handleChange('linkStyle', value as OrgChartSettingsValues['linkStyle'])}
+                fullWidth
+                value={form.values.nodeSizePreset}
+                onChange={handlePresetChange}
                   data={[
-                    { label: 'Изогнутые', value: 'curved' },
-                    { label: 'Прямые', value: 'straight' },
-                    { label: 'Ступенчатые', value: 'step' }
-                  ]}
-                  fullWidth
+                  { value: 'small', label: 'S' },
+                  { value: 'medium', label: 'M' },
+                  { value: 'large', label: 'L' },
+                  { value: 'custom', label: 'Custom' },
+                ]}
+              />
+              
+              <Group grow mt="xs">
+                <NumberInput
+                  label="Ширина"
+                  value={form.values.nodeWidth}
+                  onChange={(value) => form.setFieldValue('nodeWidth', Number(value) || 100)}
+                  min={80}
+                  max={300}
+                  disabled={form.values.nodeSizePreset !== 'custom'}
                 />
-
-                <Text size="sm" weight={500} mt="xs">Расстояние между уровнями</Text>
-                <Slider
-                  value={settings.levelGap}
-                  onChange={(value) => handleChange('levelGap', value)}
-                  min={30}
+                <NumberInput
+                  label="Высота"
+                  value={form.values.nodeHeight}
+                  onChange={(value) => form.setFieldValue('nodeHeight', Number(value) || 50)}
+                  min={40}
                   max={200}
-                  step={10}
-                  marks={[
-                    { value: 30, label: '30' },
-                    { value: 100, label: '100' },
-                    { value: 200, label: '200' }
-                  ]}
+                  disabled={form.values.nodeSizePreset !== 'custom'}
                 />
-
-                <Text size="sm" weight={500} mt="xs">Расстояние между элементами</Text>
+              </Group>
+              
+              <Text fw={500} size="sm" mt="md" mb={5}>Отступ между соседними узлами</Text>
                 <Slider
-                  value={settings.siblingGap}
-                  onChange={(value) => handleChange('siblingGap', value)}
                   min={10}
                   max={100}
                   step={5}
+                label={(value) => `${value}px`}
+                value={form.values.siblingGap}
+                onChange={(value) => form.setFieldValue('siblingGap', value)}
                   marks={[
-                    { value: 10, label: '10' },
-                    { value: 50, label: '50' },
-                    { value: 100, label: '100' }
-                  ]}
-                />
-
-                <Group mt="xs">
-                  <Switch
-                    label="Компактный вид"
-                    checked={settings.compactView}
-                    onChange={(event) => handleChange('compactView', event.currentTarget.checked)}
-                  />
-                  <Switch
-                    label="Показать сетку"
-                    checked={settings.showGrid}
-                    onChange={(event) => handleChange('showGrid', event.currentTarget.checked)}
-                  />
-                </Group>
-              </Stack>
-            </Accordion.Panel>
-          </Accordion.Item>
-
-          <Accordion.Item value="nodes">
-            <Accordion.Control>
-              <Group spacing="xs">
-                <IconRotate size={16} />
-                <Text>Узлы</Text>
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Stack spacing="xs">
-                <Text size="sm" weight={500}>Размер узлов</Text>
+                  { value: 20, label: '20px' },
+                  { value: 60, label: '60px' },
+                  { value: 100, label: '100px' },
+                ]}
+              />
+              
+              <Text fw={500} size="sm" mt="md" mb={5}>Отступ между уровнями</Text>
                 <Slider
-                  value={settings.nodeSize}
-                  onChange={(value) => handleChange('nodeSize', value)}
                   min={20}
-                  max={100}
+                max={150}
                   step={5}
+                label={(value) => `${value}px`}
+                value={form.values.levelGap}
+                onChange={(value) => form.setFieldValue('levelGap', value)}
                   marks={[
-                    { value: 20, label: '20' },
-                    { value: 60, label: '60' },
-                    { value: 100, label: '100' }
-                  ]}
-                />
-
-                <Text size="sm" weight={500} mt="xs">Скругление углов</Text>
+                  { value: 40, label: '40px' },
+                  { value: 100, label: '100px' },
+                  { value: 150, label: '150px' },
+                ]}
+              />
+              
+              <Text fw={500} size="sm" mt="md" mb={5}>Скругление углов</Text>
                 <Slider
-                  value={settings.nodeBorderRadius}
-                  onChange={(value) => handleChange('nodeBorderRadius', value)}
                   min={0}
-                  max={20}
+                max={16}
                   step={1}
+                label={(value) => `${value}px`}
+                value={form.values.nodeBorderRadius}
+                onChange={(value) => form.setFieldValue('nodeBorderRadius', value)}
                   marks={[
-                    { value: 0, label: '0' },
-                    { value: 10, label: '10' },
-                    { value: 20, label: '20' }
-                  ]}
-                />
-
-                <Text size="sm" weight={500} mt="xs">Максимальная глубина</Text>
-                <NumberInput
-                  value={settings.maxDepth ?? undefined}
-                  onChange={(value) => handleChange('maxDepth', value !== '' ? Number(value) : null)}
-                  placeholder="Все уровни"
-                  min={1}
-                  max={10}
-                  step={1}
-                />
-
-                <Group mt="xs">
+                  { value: 0, label: '0px' },
+                  { value: 8, label: '8px' },
+                  { value: 16, label: '16px' },
+                ]}
+              />
+            </Box>
+          </Collapse>
+        </Box>
+        
+        {/* Раздел отображения */}
+        <Box>
+          <Group justify="space-between" onClick={() => toggleSection('display')} style={{ cursor: 'pointer' }}>
+            <Text fw={500}>Отображение</Text>
+            <ActionIcon>
+              {activeSection === 'display' ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            </ActionIcon>
+          </Group>
+          
+          <Collapse in={activeSection === 'display'}>
+            <Box mt="xs">
+              <Switch
+                label="Компактный вид"
+                checked={form.values.compactView}
+                onChange={(event) => form.setFieldValue('compactView', event.currentTarget.checked)}
+                mt="xs"
+              />
+              
+              <Switch
+                label="Показывать должность/описание"
+                checked={form.values.showTitle}
+                onChange={(event) => form.setFieldValue('showTitle', event.currentTarget.checked)}
+                mt="xs"
+              />
+              
+              <Switch
+                label="Показывать код подразделения"
+                checked={form.values.showDepartmentCode}
+                onChange={(event) => form.setFieldValue('showDepartmentCode', event.currentTarget.checked)}
+                mt="xs"
+              />
+              
                   <Switch
-                    label="Показать должность"
-                    checked={settings.showTitle}
-                    onChange={(event) => handleChange('showTitle', event.currentTarget.checked)}
+                label="Цвет по типу узла"
+                checked={form.values.colorByType}
+                onChange={(event) => form.setFieldValue('colorByType', event.currentTarget.checked)}
+                mt="xs"
+              />
+              
+              {form.values.colorByType && (
+                <Group grow mt="xs">
+                  <ColorInput
+                    label="Цвет подразделений"
+                    format="hex"
+                    value={form.values.departmentColor}
+                    onChange={(value) => form.setFieldValue('departmentColor', value)}
+                    withEyeDropper={false}
+                    swatches={['#1971c2', '#2b8a3e', '#5f3dc4', '#e67700', '#c92a2a']}
                   />
-                  <Switch
-                    label="Показать код"
-                    checked={settings.showDepartmentCode}
-                    onChange={(event) => handleChange('showDepartmentCode', event.currentTarget.checked)}
+                  <ColorInput
+                    label="Цвет отделов"
+                    format="hex"
+                    value={form.values.divisionColor}
+                    onChange={(value) => form.setFieldValue('divisionColor', value)}
+                    withEyeDropper={false}
+                    swatches={['#2f9e44', '#1c7ed6', '#862e9c', '#f08c00', '#e03131']}
                   />
                 </Group>
-              </Stack>
-            </Accordion.Panel>
-          </Accordion.Item>
-
-          <Accordion.Item value="colors">
-            <Accordion.Control>
-              <Group spacing="xs">
-                <IconArrowsMaximize size={16} />
-                <Text>Цвета</Text>
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Stack spacing="xs">
-                <Switch
-                  label="Разделять цветом по типу"
-                  checked={settings.colorByType}
-                  onChange={(event) => handleChange('colorByType', event.currentTarget.checked)}
-                />
-
-                <Text size="sm" weight={500} mt="xs">Цвет департаментов</Text>
-                <ColorPicker
-                  format="hex"
-                  value={settings.departmentColor}
-                  onChange={(color) => handleChange('departmentColor', color)}
-                  swatches={[
-                    theme.colors.blue[6],
-                    theme.colors.indigo[6],
-                    theme.colors.purple[6],
-                    theme.colors.teal[6],
-                    theme.colors.green[6],
-                    theme.colors.yellow[6],
-                    theme.colors.orange[6],
-                    theme.colors.red[6],
-                  ]}
-                />
-
-                <Text size="sm" weight={500} mt="xs">Цвет отделов</Text>
-                <ColorPicker
-                  format="hex"
-                  value={settings.divisionColor}
-                  onChange={(color) => handleChange('divisionColor', color)}
-                  swatches={[
-                    theme.colors.blue[4],
-                    theme.colors.indigo[4],
-                    theme.colors.purple[4],
-                    theme.colors.teal[4],
-                    theme.colors.green[4],
-                    theme.colors.yellow[4],
-                    theme.colors.orange[4],
-                    theme.colors.red[4],
-                  ]}
-                />
-              </Stack>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
-
-        <Divider />
-
-        <Group position="apart">
-          <Button 
-            variant="filled" 
-            leftIcon={<IconDownload size={16} />}
-            onClick={() => onExport('svg')}
-          >
-            Экспорт SVG
-          </Button>
-          <Button 
-            variant="light" 
-            leftIcon={<IconDownload size={16} />}
-            onClick={() => onExport('png')}
-          >
-            Экспорт PNG
-          </Button>
-        </Group>
+              )}
+              
+              <NumberInput
+                label="Максимальная глубина (пусто - без ограничений)"
+                value={form.values.maxDepth === null ? undefined : form.values.maxDepth}
+                onChange={(value) => form.setFieldValue('maxDepth', value === undefined ? null : Number(value))}
+                min={1}
+                max={10}
+                mt="xs"
+                placeholder="Без ограничений"
+              />
+            </Box>
+          </Collapse>
+        </Box>
       </Stack>
     </Paper>
   );
 }
-
-// Дефолтные настройки
-export const defaultOrgChartSettings: OrgChartSettingsValues = {
-  layout: 'vertical',
-  nodeSize: 50,
-  levelGap: 100,
-  siblingGap: 40,
-  nodeBorderRadius: 5,
-  showTitle: true,
-  showDepartmentCode: false,
-  colorByType: true,
-  linkStyle: 'curved',
-  zoom: 1,
-  maxDepth: null,
-  showGrid: false,
-  compactView: false,
-  departmentColor: '#228be6', // blue.6
-  divisionColor: '#4dabf7', // blue.4
-};
-
-export default OrgChartSettings; 

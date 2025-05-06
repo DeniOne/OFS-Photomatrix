@@ -101,13 +101,6 @@ function App() {
       <BrowserRouter>
         <MantineProvider theme={theme} defaultColorScheme="dark">
           <Notifications position="top-right" />
-          {/* Кнопка автологина - видна на всех страницах */}
-          <AutoLoginButton 
-            position="fixed" 
-            bottom={20} 
-            right={20} 
-            size="sm"
-          />
           {/* Показываем начальный лоадер */}
           {isLoading ? (
             <LoadingOverlay visible={true} overlayProps={{ radius: "sm", blur: 2 }} />

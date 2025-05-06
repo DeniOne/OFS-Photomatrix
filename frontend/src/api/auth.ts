@@ -3,7 +3,6 @@
  */
 
 import axios from 'axios';
-import { api } from './client';
 
 // Константа с базовым URL для API
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -86,61 +85,30 @@ export const isAuthenticated = (): boolean => {
 /**
  * Выполняет аутентификацию пользователя
  */
-export const loginUser = async (credentials: LoginCredentials): Promise<LoginResponse> => {
-  const formData = new URLSearchParams();
-  formData.append('username', credentials.username);
-  formData.append('password', credentials.password);
-
-  // Используем правильный URL с префиксом /api/v1
-  const loginUrl = `${API_URL}/api/v1/auth/login`;
-  console.log("loginUser: Отправляем запрос на авторизацию", { username: credentials.username, url: loginUrl });
-  
+export const login = async (credentials: LoginCredentials): Promise<string> => {
   try {
-    const response = await fetch(loginUrl, {
-      method: 'POST',
+    // Используем формат x-www-form-urlencoded вместо JSON
+    const loginUrl = `${API_URL}/api/v1/login`;
+    
+    // Создаем объект FormData
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.username);
+    formData.append('password', credentials.password);
+    
+    const response = await axios.post(loginUrl, formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: formData,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("loginUser: Ошибка авторизации", errorData);
-      throw new Error(errorData.detail || 'Ошибка авторизации');
+    if (response.data.access_token) {
+      setToken(response.data.access_token);
+      return response.data.access_token;
+    } else {
+      throw new Error('Ответ не содержит токен доступа');
     }
-
-    const data = await response.json();
-    console.log("loginUser: Успешная авторизация", data);
-    // Используем функцию saveToken для установки токена
-    saveToken(data.access_token);
-    return data;
   } catch (error) {
-    console.error("loginUser: Ошибка при авторизации", error);
-    throw error;
-  }
-};
-
-/**
- * Автоматический вход в систему с предустановленными учетными данными администратора
- * @returns {Promise<LoginResponse>} Результат авторизации
- */
-export const autoLogin = async (): Promise<LoginResponse> => {
-  console.log("autoLogin: Запускаем автоматический вход...");
-  
-  // Используем фиксированные учетные данные администратора
-  const credentials: LoginCredentials = {
-    username: 'admin@example.com',
-    password: 'admin'
-  };
-  
-  try {
-    const result = await loginUser(credentials);
-    
-    console.log("autoLogin: Вход выполнен успешно");
-    return result;
-  } catch (error) {
-    console.error("autoLogin: Ошибка при автоматическом входе:", error);
+    console.error("login: Ошибка при авторизации", error);
     throw error;
   }
 };

@@ -29,4 +29,11 @@ class ActivationResponse(BaseModel):
     message: str
     is_active: bool
     access_token: Optional[str] = None
-    token_type: Optional[str] = None 
+    token_type: Optional[str] = None
+    
+class InvitationCodeSchema(BaseModel):
+    """
+    u0421u0445u0435u043cu0430 u0434u043bu044f u0432u0430u043bu0438u0434u0430u0446u0438u0438 u043au043eu0434u0430 u043fu0440u0438u0433u043bu0430u0448u0435u043du0438u044f
+    """
+    code: str
+    telegram_id: str 

@@ -1,5 +1,4 @@
-import { OrgChartNode } from '../components/OrgChart';
-import { DivisionType } from '../../../types/division'; // Импортируем enum, если он есть
+import { OrgChartNodeData } from '../types/orgChartTypes';
 
 // Типы для примера, замените на реальные типы из бэкенда, если они отличаются
 type BackendNode = BackendDivisionNode | BackendStaffNode;
@@ -27,8 +26,8 @@ interface BackendStaffNode {
  * @param backendNode - Узел данных из бэкенда.
  * @returns Узел в формате OrgChartNode.
  */
-export function transformDataForOrgChart(backendNode: BackendNode): OrgChartNode {
-  let node: Partial<OrgChartNode> = {
+export function transformDataForOrgChart(backendNode: BackendNode): OrgChartNodeData {
+  let node: Partial<OrgChartNodeData> = {
       // Преобразуем ID в строку и добавляем префикс
       id: `${backendNode.type.toLowerCase()}-${backendNode.id}`, 
   };
@@ -43,12 +42,10 @@ export function transformDataForOrgChart(backendNode: BackendNode): OrgChartNode
       // Собираем ФИО
       node.name = `${staff.last_name} ${staff.first_name}${staff.middle_name ? ' ' + staff.middle_name : ''}`;
       node.title = staff.position_name; // Используем название должности как title
-      node.type = 'position'; // Staff узлы соответствуют типу 'position' в нашей диаграмме
   } else {
-      // Обработка неизвестного типа узла, если необходимо
-      console.warn("Unknown backend node type:", backendNode);
-      node.name = "Неизвестный узел";
-      node.type = undefined; // Или какой-то тип по умолчанию
+      console.warn('Unknown backend node type:', backendNode);
+      node.name = 'Неизвестный узел';
+      node.type = undefined;
   }
 
   // Рекурсивно обрабатываем дочерние элементы, если они есть
@@ -69,7 +66,7 @@ export function transformDataForOrgChart(backendNode: BackendNode): OrgChartNode
       // Для простоты вернем как есть, но D3 может выдать ошибку позже
   }
 
-  return node as OrgChartNode; // Утверждаем тип, т.к. мы заполнили обязательные поля
+  return node as OrgChartNodeData; // Утверждаем тип, т.к. мы заполнили обязательные поля
 }
 
 /**
@@ -77,7 +74,7 @@ export function transformDataForOrgChart(backendNode: BackendNode): OrgChartNode
  * @param backendData - Корневой узел данных из бэкенда.
  * @returns Корневой узел в формате OrgChartNode или null при ошибке.
  */
-export function transformBackendData(backendData: BackendOrgChartData | null | undefined): OrgChartNode | null {
+export function transformBackendData(backendData: BackendOrgChartData | null | undefined): OrgChartNodeData | null {
     if (!backendData) {
         return null;
     }

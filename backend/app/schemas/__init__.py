@@ -1,6 +1,6 @@
-from app.schemas.token import Token, TokenPayload
+from app.schemas.token import Token, TokenPayload, ActivationResponse, UserActivation
 from app.schemas.user import User, UserCreate, UserUpdate, UserInDB, UsersPublic
-from app.schemas.organization import Organization, OrganizationCreate, OrganizationUpdate, OrganizationWithChildren
+from app.schemas.organization import Organization, OrganizationCreate, OrganizationUpdate, OrganizationWithChildren, OrganizationTree
 from app.schemas.division import Division, DivisionCreate, DivisionUpdate, DivisionWithRelations
 from app.schemas.section import Section, SectionCreate, SectionUpdate
 from app.schemas.position import Position, PositionCreate, PositionUpdate
@@ -16,7 +16,7 @@ DivisionWithChildren = DivisionWithRelations
 # Для удобного импорта всех схем
 __all__ = [
     "User", "UserCreate", "UserUpdate", "UserInDB", "UsersPublic",
-    "Organization", "OrganizationCreate", "OrganizationUpdate", "OrganizationWithChildren",
+    "Organization", "OrganizationCreate", "OrganizationUpdate", "OrganizationWithChildren", "OrganizationTree",
     "Division", "DivisionCreate", "DivisionUpdate", "DivisionWithChildren", "DivisionWithRelations",
     "Section", "SectionCreate", "SectionUpdate",
     "Position", "PositionCreate", "PositionUpdate",
@@ -25,5 +25,5 @@ __all__ = [
     "Function", "FunctionCreate", "FunctionUpdate",
     "FunctionalAssignment", "FunctionalAssignmentCreate", "FunctionalAssignmentUpdate",
     "FunctionalRelation", "FunctionalRelationCreate", "FunctionalRelationUpdate",
-    "Token", "TokenPayload"
+    "Token", "TokenPayload", "ActivationResponse", "UserActivation"
 ] 

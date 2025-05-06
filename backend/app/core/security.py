@@ -5,6 +5,7 @@ from jose import jwt
 from passlib.context import CryptContext
 import os
 from dotenv import load_dotenv
+import secrets
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -42,4 +43,9 @@ def get_password_hash(password: str) -> str:
     """
     Получить хеш пароля
     """
-    return pwd_context.hash(password) 
+    return pwd_context.hash(password)
+
+def generate_activation_code(length: int = 6) -> str:
+    """Сгенерировать цифровой код активации (по умолчанию 6 цифр)."""
+    alphabet = '0123456789'
+    return ''.join(secrets.choice(alphabet) for _ in range(length)) 

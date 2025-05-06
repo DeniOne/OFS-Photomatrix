@@ -53,6 +53,12 @@ export default defineConfig({
   mode: 'development',
   logLevel: 'info',
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      }
+    },
     hmr: {
       timeout: 5000,
     },

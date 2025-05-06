@@ -4,7 +4,7 @@ import { Position, PositionCreate, PositionUpdate } from '../../../types/positio
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
 
-const API_URL_POSITIONS = '/api/v1/positions/';
+const API_URL_POSITIONS = '/positions/';
 
 // --- Функции для вызова API ---
 
@@ -21,7 +21,7 @@ const fetchPositions = async (section_id?: number | null): Promise<Position[]> =
 
 // Получение одной должности по ID
 const fetchPosition = async (id: number): Promise<Position> => {
-  const response = await api.get<Position>(`/api/v1/positions/${id}`);
+  const response = await api.get<Position>(`/positions/${id}`);
   return response.data;
 };
 
@@ -33,13 +33,13 @@ const createPosition = async (data: PositionCreate): Promise<Position> => {
 
 // Обновление должности
 const updatePosition = async ({ id, data }: { id: number; data: PositionUpdate }): Promise<Position> => {
-  const response = await api.put<Position>(`/api/v1/positions/${id}`, data);
+  const response = await api.put<Position>(`/positions/${id}`, data);
   return response.data;
 };
 
 // Удаление должности
 const deletePosition = async (id: number): Promise<void> => {
-  await api.delete(`/api/v1/positions/${id}`);
+  await api.delete(`/positions/${id}`);
 };
 
 // --- Хуки React Query ---

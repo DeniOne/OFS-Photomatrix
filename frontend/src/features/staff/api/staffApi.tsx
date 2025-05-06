@@ -6,9 +6,9 @@ import { IconCheck, IconX } from '@tabler/icons-react';
 import { Position } from '../../../types/position';
 import { Organization } from '../../../types/organization';
 
-const API_URL_STAFF = '/api/v1/staff/';
-const API_URL_POSITIONS = '/api/v1/positions/';
-const API_URL_ORGANIZATIONS = '/api/v1/organizations/';
+const API_URL_STAFF = '/staff/';
+const API_URL_POSITIONS = '/positions/';
+const API_URL_ORGANIZATIONS = '/organizations/';
 
 // --- Функции для вызова API ---
 
@@ -51,13 +51,27 @@ const createStaff = async (data: StaffCreate): Promise<Staff> => {
 const updateStaff = async ({ id, data }: { id: number; data: StaffUpdate }): Promise<Staff> => {
   console.log(`Отправка запроса на обновление сотрудника с ID ${id}:`, data);
   
-  // Убедимся, что ID преобразованы в числа
-  const preparedData = {
-    ...data,
-    position_id: data.position_id ? Number(data.position_id) : undefined,
-    organization_id: data.organization_id ? Number(data.organization_id) : undefined,
-    location_id: data.location_id ? Number(data.location_id) : undefined
-  };
+  // Создаем копию данных, не преобразуя поля, чтобы не нарушить типизацию
+  const preparedData = { ...data };
+  
+  // Если есть кастомные поля, которые нужно преобразовать, делаем это безопасно
+  if ('position_id' in data) {
+    // @ts-ignore - обходим проверку типов, так как мы знаем что делаем
+    preparedData.positions = Number(data.position_id);
+    // @ts-ignore
+    delete preparedData.position_id;
+  }
+  
+  // Проверяем наличие поля organization_id
+  if ('organization_id' in data && data.organization_id) {
+    preparedData.organization_id = Number(data.organization_id);
+  }
+  
+  // Убираем location_id, так как его нет в типе
+  if ('location_id' in data) {
+    // @ts-ignore
+    delete preparedData.location_id;
+  }
   
   try {
     const response = await api.put<Staff>(`${API_URL_STAFF}${id}`, preparedData);

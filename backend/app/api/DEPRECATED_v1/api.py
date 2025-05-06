@@ -10,7 +10,8 @@ from app.api.v1.endpoints import (
     position,
     staff,
     function,
-    users # Добавили импорт роутера users
+    users, # Добавили импорт роутера users
+    orgchart # Импортируем новый endpoint для оргчарта
 )
 
 logger = logging.getLogger(__name__)
@@ -34,3 +35,5 @@ api_router.include_router(staff.router, prefix="/staff", tags=["staff"])
 api_router.include_router(function.router, prefix="/functions", tags=["functions"])
 # Добавляем роутер users
 api_router.include_router(users.router, prefix="/users", tags=["users"]) 
+# Добавляем роутер для организационной диаграммы
+api_router.include_router(orgchart.router, prefix="/orgchart", tags=["orgchart"]) 

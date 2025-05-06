@@ -5,7 +5,7 @@ import { Section, SectionCreate, SectionUpdate } from '../../../types/section';
 // import { IconCheck, IconX } from '@tabler/icons-react'; // Закомментировано, т.к. уведомления отключены
 
 // const SECTIONS_QUERY_KEY = ['sections']; // Не используется, удалено или закомментировано
-const API_URL_SECTIONS = '/api/v1/sections/'; // URL со слешем!
+const API_URL_SECTIONS = '/sections/'; // Убрали префикс /api/v1
 
 // --- Функции для вызова API ---
 
@@ -28,14 +28,12 @@ const createSection = async (data: SectionCreate): Promise<Section> => {
 
 // Принимает один объект { id, data }
 const updateSection = async ({ id, data }: { id: number; data: SectionUpdate }): Promise<Section> => {
-  // БЕЗ слеша для ID!
-  const response = await api.put<Section>(`/api/v1/sections/${id}`, data); // Используем api
+  const response = await api.put<Section>(`/sections/${id}`, data); // Исправили путь
   return response.data;
 };
 
 const deleteSection = async (id: number): Promise<void> => {
-  // БЕЗ слеша для ID!
-  await api.delete(`/api/v1/sections/${id}`); // Используем api
+  await api.delete(`/sections/${id}`); // Исправили путь
 };
 
 // --- Хуки React Query (v5 синтаксис) ---

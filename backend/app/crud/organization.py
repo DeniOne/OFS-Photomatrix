@@ -32,6 +32,12 @@ class CRUDOrganization(CRUDBase[Organization, OrganizationCreate, OrganizationUp
         result = await db.execute(query)
         return result.scalars().all()
     
+    async def get_all(self, db: AsyncSession) -> List[Organization]:
+        """Получить все организации без пагинации"""
+        query = select(Organization).order_by(Organization.name)
+        result = await db.execute(query)
+        return result.scalars().all()
+    
     async def get_with_children(self, db: AsyncSession, *, id: int) -> Optional[Organization]:
         """Получить организацию с дочерними организациями"""
         query = select(Organization).options(selectinload(Organization.children)).filter(Organization.id == id)

@@ -2,7 +2,7 @@ import { api } from './client'; // Правильный импорт базов�
 import { Function, FunctionCreate, FunctionUpdate } from '../types/function';
 
 // Константа с префиксом API
-const API_URL_FUNCTIONS = '/api/v1/functions/'; // URL со слешем!
+const API_URL_FUNCTIONS = '/functions/'; // Убрал дублирующийся префикс
 
 export const functionApi = {
   getAll: async (params: { skip?: number; limit?: number } = {}): Promise<Function[]> => {
@@ -11,8 +11,7 @@ export const functionApi = {
   },
 
   getById: async (id: number): Promise<Function> => {
-    // БЕЗ слеша для ID!
-    const response = await api.get<Function>(`/api/v1/functions/${id}`);
+    const response = await api.get<Function>(`/functions/${id}`);
     return response.data;
   },
 
@@ -22,14 +21,12 @@ export const functionApi = {
   },
 
   update: async (id: number, functionData: FunctionUpdate): Promise<Function> => {
-    // БЕЗ слеша для ID!
-    const response = await api.put<Function>(`/api/v1/functions/${id}`, functionData);
+    const response = await api.put<Function>(`/functions/${id}`, functionData);
     return response.data;
   },
 
   delete: async (id: number): Promise<Function> => {
-    // БЕЗ слеша для ID!
-    const response = await api.delete<Function>(`/api/v1/functions/${id}`);
+    const response = await api.delete<Function>(`/functions/${id}`);
     return response.data;
   },
 }; 

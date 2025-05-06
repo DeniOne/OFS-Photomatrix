@@ -4,7 +4,7 @@ import { notifications } from '@mantine/notifications';
 
 // Настройки API клиента
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const DEFAULT_TIMEOUT = 15000; // Увеличиваем таймаут до 15 секунд
+const DEFAULT_TIMEOUT = 30000; // Увеличиваем таймаут до 30 секунд
 
 console.log("API клиент настроен на URL:", API_URL);
 
@@ -182,4 +182,4 @@ export const apiDelete = async <T>(url: string, config?: AxiosRequestConfig): Pr
   } catch (error) {
     throw error;
   }
-}; 
+};

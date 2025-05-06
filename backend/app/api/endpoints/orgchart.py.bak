@@ -1,0 +1,110 @@
+from typing import List, Optional, Any, Union, Dict
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+import logging # Для отладки
+
+# Импортируем зависимости и модели (пути могут отличаться!)
+from app.api import deps
+from app.db.base import get_db
+from app.models.user import User as UserModel # Импортируем модель пользователя
+from app.models.divisions import Division
+from app.models.staff import Staff
+from app.models.positions import Position
+# Нужны модели Division, Staff, Position (импортируй их)
+# from app.models.division import Division as DivisionModel 
+# from app.models.staff import Staff as StaffModel
+# from app.models.position import Position as PositionModel 
+# Нужны CRUD операции (или мы напишем запрос здесь)
+# from app import crud
+
+# Импортируем Pydantic схемы для ответа (создадим их ниже)
+from app.schemas.orgchart import BackendOrgChartData, BackendNode
+
+# Настраиваем логгер
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Эндпоинт для получения структуры
+@router.get(
+    "/structure", 
+    response_model=Dict[str, Any],
+    summary="Получить полную организационную структуру для диаграммы",
+    description="Возвращает иерархическую структуру, включающую подразделения и сотрудников.",
+)
+async def get_complete_org_structure(
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Получает полную структуру организации из базы данных 
+    и преобразует ее в формат, подходящий для OrgChart на фронтенде.
+    """
+    logger.info(f"Запрос на получение полной оргструктуры от пользователя {current_user.email}")
+    
+    try:
+        # Получаем все верхнеуровневые подразделения (без родителя)
+        root_divisions = db.query(Division).filter(Division.parent_id.is_(None)).all()
+        
+        if not root_divisions:
+            return {
+                "id": "org-root",
+                "name": "Организация",
+                "type": "organization",
+                "children": []
+            }
+        
+        # Преобразуем в древовидную структуру
+        result = {
+            "id": "org-root",
+            "name": "Организация",
+            "type": "organization",
+            "children": [build_division_branch(db, div) for div in root_divisions]
+        }
+        
+        logger.info("Структура успешно собрана")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении структуры: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+
+def build_division_branch(db: Session, division: Division) -> Dict[str, Any]:
+    """
+    Рекурсивно строит ветвь подразделения с сотрудниками
+    """
+    # Создаем узел подразделения
+    division_node = {
+        "id": f"div-{division.id}",
+        "name": division.name,
+        "type": "department" if division.type == "DEPARTMENT" else "division",
+        "code": division.code,
+        "children": []
+    }
+    
+    # Получаем сотрудников подразделения
+    staff_members = db.query(Staff).filter(Staff.division_id == division.id).all()
+    
+    # Добавляем сотрудников как дочерние узлы
+    for staff in staff_members:
+        # Получаем должность
+        position = db.query(Position).filter(Position.id == staff.position_id).first()
+        position_name = position.name if position else "Должность не указана"
+        
+        staff_node = {
+            "id": f"staff-{staff.id}",
+            "name": f"{staff.last_name} {staff.first_name[:1]}.{staff.middle_name[:1] if staff.middle_name else ''}",
+            "title": position_name,
+            "type": "position"
+        }
+        division_node["children"].append(staff_node)
+    
+    # Получаем дочерние подразделения
+    child_divisions = db.query(Division).filter(Division.parent_id == division.id).all()
+    
+    # Рекурсивно добавляем дочерние подразделения
+    for child_div in child_divisions:
+        division_node["children"].append(build_division_branch(db, child_div))
+    
+    return division_node 

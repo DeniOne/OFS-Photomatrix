@@ -37,7 +37,7 @@ const handleApiError = (error: any, actionName: string): never => {
 export const fetchDivisions = async (): Promise<Division[]> => {
   console.log('Запрос списка всех подразделений');
   try {
-    const response = await api.get<Division[]>('/api/v1/divisions/');
+    const response = await api.get<Division[]>('/divisions/');
     console.log('Получены подразделения:', response.data.length);
     return response.data;
   } catch (error) {
@@ -49,7 +49,7 @@ export const fetchDivisions = async (): Promise<Division[]> => {
 export const fetchDivisionsByOrganization = async (organizationId: number): Promise<Division[]> => {
   console.log(`Запрос подразделений для организации ${organizationId}`);
   try {
-    const response = await api.get<Division[]>(`/api/v1/divisions/by-organization/${organizationId}`);
+    const response = await api.get<Division[]>(`/divisions/by-organization/${organizationId}`);
     console.log(`Получены подразделения для организации ${organizationId}:`, response.data.length);
     return response.data;
   } catch (error) {
@@ -61,7 +61,7 @@ export const fetchDivisionsByOrganization = async (organizationId: number): Prom
 export const fetchRootDivisions = async (organizationId: number): Promise<Division[]> => {
   console.log(`Запрос корневых подразделений для организации ${organizationId}`);
   try {
-    const response = await api.get<Division[]>(`/api/v1/divisions/root/${organizationId}`);
+    const response = await api.get<Division[]>(`/divisions/root/${organizationId}`);
     console.log('Получены корневые подразделения:', response.data);
     return response.data;
   } catch (error) {
@@ -73,7 +73,7 @@ export const fetchRootDivisions = async (organizationId: number): Promise<Divisi
 export const fetchDivision = async (id: number): Promise<Division> => {
   console.log(`Запрос подразделения с ID ${id}`);
   try {
-    const response = await api.get<Division>(`/api/v1/divisions/${id}`);
+    const response = await api.get<Division>(`/divisions/${id}`);
     console.log(`Получено подразделение с ID ${id}:`, response.data);
     return response.data;
   } catch (error) {
@@ -98,7 +98,7 @@ export const createDivision = async (division: DivisionCreate): Promise<Division
     }
     
     // Увеличиваем таймаут для операции создания
-    const response = await api.post<Division>('/api/v1/divisions/', division, {
+    const response = await api.post<Division>('/divisions/', division, {
       timeout: 10000, // 10 секунд
     });
     
@@ -142,7 +142,7 @@ export const createDivision = async (division: DivisionCreate): Promise<Division
 export const updateDivision = async (division: DivisionUpdate): Promise<Division> => {
   console.log(`Обновление подразделения с ID ${division.id}:`, division);
   try {
-    const response = await api.put<Division>(`/api/v1/divisions/${division.id}`, division);
+    const response = await api.put<Division>(`/divisions/${division.id}`, division);
     console.log(`Обновлено подразделение с ID ${division.id}:`, response.data);
     return response.data;
   } catch (error) {
@@ -154,7 +154,7 @@ export const updateDivision = async (division: DivisionUpdate): Promise<Division
 export const deleteDivision = async (id: number): Promise<void> => {
   console.log(`Удаление подразделения с ID ${id}`);
   try {
-    await api.delete(`/api/v1/divisions/${id}`);
+    await api.delete(`/divisions/${id}`);
     console.log(`Подразделение с ID ${id} успешно удалено`);
   } catch (error) {
     return handleApiError(error, `удалении подразделения с ID ${id}`);

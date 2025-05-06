@@ -11,7 +11,7 @@ const ORGANIZATIONS_QUERY_KEY = ['organizations'];
 // Получение списка организаций
 const fetchOrganizations = async (): Promise<Organization[]> => {
   console.log('Fetching organizations...');
-  const response = await api.get<Organization[]>('/api/v1/organizations/');
+  const response = await api.get<Organization[]>('/organizations/');
   console.log('Organizations fetched:', response.data);
   return response.data;
 };
@@ -35,7 +35,7 @@ const createOrganization = async (organizationData: OrganizationCreateDto): Prom
     }
     
     // Отправка запроса с обработкой таймаута
-    const response = await api.post<Organization>('/api/v1/organizations/', organizationData, {
+    const response = await api.post<Organization>('/organizations/', organizationData, {
       timeout: 10000, // увеличиваем таймаут до 10 секунд
     });
     
@@ -77,7 +77,7 @@ const createOrganization = async (organizationData: OrganizationCreateDto): Prom
 // Обновление организации
 const updateOrganization = async ({ id, data }: { id: number; data: OrganizationUpdateDto }): Promise<Organization> => {
   console.log(`Updating organization ${id}:`, data);
-  const response = await api.put<Organization>(`/api/v1/organizations/${id}`, data);
+  const response = await api.put<Organization>(`/organizations/${id}`, data);
   console.log('Organization updated:', response.data);
   return response.data;
 };
@@ -85,7 +85,7 @@ const updateOrganization = async ({ id, data }: { id: number; data: Organization
 // Удаление организации
 const deleteOrganization = async (id: number): Promise<void> => {
   console.log(`Deleting organization ${id}`);
-  await api.delete(`/api/v1/organizations/${id}`);
+  await api.delete(`/organizations/${id}`);
   console.log(`Organization ${id} deleted`);
 };
 

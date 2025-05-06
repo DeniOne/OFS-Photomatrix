@@ -3,7 +3,7 @@ import { useForm } from '@mantine/form';
 import { TextInput, PasswordInput, Button, Title, Text, Container, Box, Center } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { loginUser } from '../api/auth'; // Правильный импорт из модуля auth
+import { login } from '../api/auth'; // Используем актуальную функцию login вместо loginUser
 import { 
   useMantineTheme, 
   LoadingOverlay
@@ -29,11 +29,9 @@ const LoginPage = () => {
 
   // Мутация для логина
   const mutation = useMutation({
-    mutationFn: loginUser,
-    onSuccess: (data) => {
-      console.log('Успешный вход:', data);
-      // Сохраняем токен в localStorage
-      localStorage.setItem('access_token', data.access_token);
+    mutationFn: login,
+    onSuccess: (token) => {
+      console.log('Успешный вход, получен токен');
       notifications.show({
         title: 'Успех!',
         message: 'Вы успешно вошли в систему.',
